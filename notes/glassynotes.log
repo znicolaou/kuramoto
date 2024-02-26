@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.24 (TeX Live 2022) (preloaded format=pdflatex 2022.11.3)  26 FEB 2024 14:10
+This is pdfTeX, Version 3.141592653-2.6-1.40.24 (TeX Live 2022) (preloaded format=pdflatex 2022.11.3)  26 FEB 2024 14:13
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -483,13 +483,13 @@ File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 
 pdfTeX warning: /Library/TeX/texbin/pdflatex (file ./fig1.pdf): PDF inclusion: 
 found PDF version <1.6>, but at most version <1.5> allowed
-<fig1.pdf, id=55, 450.78915pt x 389.44597pt>
+<fig1.pdf, id=57, 450.78915pt x 389.44597pt>
 File: fig1.pdf Graphic file (type pdf)
 <use fig1.pdf>
 Package pdftex.def Info: fig1.pdf  used on input line 50.
 (pdftex.def)             Requested size: 382.5pt x 330.45421pt.
 [2 <./fig1.pdf>]
-<fig2.pdf, id=180, 722.7pt x 289.08pt>
+<fig2.pdf, id=182, 722.7pt x 289.08pt>
 File: fig2.pdf Graphic file (type pdf)
 <use fig2.pdf>
 Package pdftex.def Info: fig2.pdf  used on input line 70.
@@ -503,7 +503,7 @@ Package hyperref Warning: Token not allowed in a PDF string (Unicode):
 Package hyperref Warning: Token not allowed in a PDF string (Unicode):
 (hyperref)                removing `math shift' on input line 74.
 
-<orders2.pdf, id=187, 578.16pt x 578.16pt>
+<orders2.pdf, id=189, 578.16pt x 578.16pt>
 File: orders2.pdf Graphic file (type pdf)
 <use orders2.pdf>
 Package pdftex.def Info: orders2.pdf  used on input line 77.
@@ -515,11 +515,11 @@ Package rerunfilecheck Info: File `glassynotes.out' has not changed.
 (rerunfilecheck)             Checksum: 2D45201FCE00705A785A5B9C0C471056;1268.
  ) 
 Here is how much of TeX's memory you used:
- 11542 strings out of 478268
- 175511 string characters out of 5846347
- 490034 words of memory out of 5000000
- 29573 multiletter control sequences out of 15000+600000
- 479268 words of font info for 65 fonts, out of 8000000 for 9000
+ 11548 strings out of 478268
+ 175583 string characters out of 5846347
+ 490049 words of memory out of 5000000
+ 29577 multiletter control sequences out of 15000+600000
+ 479435 words of font info for 66 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
  69i,7n,76p,1895b,415s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/local/texlive/2022/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb
@@ -534,11 +534,12 @@ al/texlive/2022/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/local
 xlive/2022/texmf-dist/fonts/type1/public/amsfonts/cm/cmr9.pfb></usr/local/texli
 ve/2022/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/local/texliv
 e/2022/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></usr/local/texlive/
-2022/texmf-dist/fonts/type1/public/amsfonts/symbols/msam10.pfb>
-Output written on glassynotes.pdf (5 pages, 5608224 bytes).
+2022/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt9.pfb></usr/local/texlive/20
+22/texmf-dist/fonts/type1/public/amsfonts/symbols/msam10.pfb>
+Output written on glassynotes.pdf (5 pages, 5619300 bytes).
 PDF statistics:
- 311 PDF objects out of 1000 (max. 8388607)
- 156 compressed objects within 2 object streams
- 24 named destinations out of 1000 (max. 500000)
+ 320 PDF objects out of 1000 (max. 8388607)
+ 163 compressed objects within 2 object streams
+ 25 named destinations out of 1000 (max. 500000)
  72 words of extra memory for PDF output out of 10000 (max. 10000000)
 
