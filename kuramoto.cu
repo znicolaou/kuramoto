@@ -20,6 +20,7 @@ typedef struct parameters
   float *y2;
   float *f2;
   float *f3;
+  float *floc;
   float *omegas;
   float *adj;
   float c1;
@@ -109,8 +110,8 @@ void makecoupling(float t, float *y, float *f, void* pars){
   else{
     float alpha=1;
     float beta=0;
-    cublasSgemv(p->handle, CUBLAS_OP_T, p->N, p->N, &alpha, p->adj, p->N, p->y2, 2, &beta, p->f2, 2);
-    cublasSgemv(p->handle, CUBLAS_OP_T, p->N, p->N, &alpha, p->adj, p->N, (p->y2)+1, 2, &beta, (p->f2)+1, 2);
+    cublasSgemv(p->handle, CUBLAS_OP_T, p->N, p->N, &alpha, p->adj, p->N, p->y2, 2, &beta, f, 2);
+    cublasSgemv(p->handle, CUBLAS_OP_T, p->N, p->N, &alpha, p->adj, p->N, (p->y2)+1, 2, &beta, f+1, 2);
   }
 }
 
@@ -186,11 +187,15 @@ void step_eval(float t, float h, float* y, void *pars){
     fclose(outtimes);
   }
 
-  FILE *outanimation;
+  FILE *outanimation, *outcouplings;
   if(p->dense){
     strcpy(file,p->filebase);
     strcat(file, "thetas.dat");
     outanimation = fopen(file,"ab");
+
+    strcpy(file,p->filebase);
+    strcat(file, "couplings.dat");
+    outcouplings = fopen(file,"ab");
   }
 
 
@@ -208,6 +213,7 @@ void step_eval(float t, float h, float* y, void *pars){
     y_eval=dp45_eval(t,p->t_eval[p->eval_i]);
 
     makey2<<<(p->N+255)/256, 256>>>(y_eval, p->N, p->y2, p->omegas, t);
+
     cublasSdot(p->handle,p->N, p->y2, 2, p->ones, 1, &X);
     cublasSdot(p->handle,p->N, p->y2+1, 2, p->ones, 1, &Y);
     r[ind++]=pow((X/p->N*X/p->N+Y/p->N*Y/p->N),0.5);
@@ -215,14 +221,19 @@ void step_eval(float t, float h, float* y, void *pars){
       cublasGetVector(p->N, sizeof(float), y_eval, 1, p->yloc, 1);
       fwrite(p->yloc,sizeof(float),p->N,outanimation);
       fflush(outanimation);
+
+      makecoupling(t,p->y2,p->f2,pars);
+      cublasGetVector(2*p->N, sizeof(float), p->f2, 1, p->floc, 1);
+      fwrite(p->floc,sizeof(float),2*p->N,outcouplings);
+      fflush(outcouplings);
     }
 
     p->eval_i++;
   }
   if(p->dense){
     fclose(outanimation);
+    fclose(outcouplings);
   }
-  cublasGetVector(p->N, sizeof(float), y, 1, p->yloc, 1);
 
   if (num>0){
     strcpy(file,p->filebase);
@@ -232,6 +243,7 @@ void step_eval(float t, float h, float* y, void *pars){
     fflush(outorder);
     fclose(outorder);
   }
+  cublasGetVector(p->N, sizeof(float), y, 1, p->yloc, 1);
 
   strcpy(file,p->filebase);
   strcat(file,"fs.dat");
@@ -240,6 +252,7 @@ void step_eval(float t, float h, float* y, void *pars){
   fwrite(p->yloc,sizeof(float),p->N,outlast);
   fwrite(&t,sizeof(float),1,outlast);
   fwrite(&h,sizeof(float),1,outlast);
+  fwrite(p->floc,sizeof(float),2*p->N,outlast);
   fflush(outlast);
   fclose(outlast);
 }
@@ -377,8 +390,9 @@ int main (int argc, char* argv[]) {
     strcat(file,".out");
     out = fopen(file,"ab");
 
-    float *omegasloc, *omegas, *yloc, *adjloc, *adj, *y2, *f2, *f3, *ones;
+    float *omegasloc, *omegas, *yloc, *adjloc, *adj, *y2, *f2, *f3, *floc, *ones;
     yloc = (float*)calloc(N,sizeof(float));
+    floc = (float*)calloc(2*N,sizeof(float));
     omegasloc = (float*)calloc(N,sizeof(float));
     adjloc = (float*)calloc(N*N,sizeof(float));
 
@@ -444,6 +458,8 @@ int main (int argc, char* argv[]) {
 
     strcpy(file,filebase);
     strcat(file, "fs.dat");
+
+
     int reloaded=0;
     if (reload && (in = fopen(file,"r"))){
       reloaded=1;
@@ -480,30 +496,6 @@ int main (int argc, char* argv[]) {
       fclose(in);
 
       cublasSetVector(N, sizeof(float), yloc, 1, omegas, 1);
-      strcpy(file,filebase);
-      strcat(file,"order.dat");
-      FILE *outorder=fopen(file,"wb");
-      makey2<<<(N+255)/256, 256>>>(omegas, N, y2, omegas, t);
-      float X,Y;
-      cublasSdot(handle,N, y2, 2, ones, 1, &X);
-      cublasSdot(handle,N, y2+1, 2, ones, 1, &Y);
-      float r=pow((X/N*X/N+Y/N*Y/N),0.5);
-      fwrite(&r,sizeof(float),1,outorder);
-      fflush(outorder);
-      fclose(outorder);
-
-      if(dense){
-        strcpy(file,filebase);
-        strcat(file,"thetas.dat");
-        FILE *outanimation=fopen(file,"wb");
-        fwrite(yloc,sizeof(float),N,outanimation);
-        fflush(outanimation);
-        fclose(outanimation);
-        strcpy(file,filebase);
-        strcat(file,"times.dat");
-        FILE *outtimes=fopen(file,"wb");
-        fclose(outtimes);
-      }
     }
 
     strcpy(file,filebase);
@@ -553,7 +545,7 @@ int main (int argc, char* argv[]) {
     cublasSetVector (N, sizeof(float), omegasloc, 1, omegas, 1);
 
 
-    parameters pars={.handle=handle, .N=N, .K=K, .A=A, .y2=y2, .f2=f2, .f3=f3, .omegas=omegas, .adj=adj, .c1=c1, .t0=t, .t1=t1, .steps=0, .verbose=verbose, .dense=dense, .t_eval=t_eval, .n_eval=n_eval, .eval_i=0, .yloc=yloc, .ones=ones, .filebase=filebase,.start=start, .state=state};
+    parameters pars={.handle=handle, .N=N, .K=K, .A=A, .y2=y2, .f2=f2, .f3=f3, .floc=floc, .omegas=omegas, .adj=adj, .c1=c1, .t0=t, .t1=t1, .steps=0, .verbose=verbose, .dense=dense, .t_eval=t_eval, .n_eval=n_eval, .eval_i=0, .yloc=yloc, .ones=ones, .filebase=filebase,.start=start, .state=state};
 
     strcpy(file,filebase);
     strcat(file, "adj.dat");
@@ -581,9 +573,67 @@ int main (int argc, char* argv[]) {
     fflush(out);
     fclose(out);
 
-
     float* y=dp45_init(N, atl, rtl, fixed, yloc, handle, &dydt);
+
+    if(!reloaded){
+      strcpy(file,filebase);
+      strcat(file,"order.dat");
+      FILE *outorder=fopen(file,"wb");
+
+      makey2<<<(N+255)/256, 256>>>(y, N, y2, omegas, t);
+
+      float X,Y;
+      cublasSdot(handle,N, y2, 2, ones, 1, &X);
+      cublasSdot(handle,N, y2+1, 2, ones, 1, &Y);
+      float r=pow((X/N*X/N+Y/N*Y/N),0.5);
+      fwrite(&r,sizeof(float),1,outorder);
+      fflush(outorder);
+      fclose(outorder);
+
+      if(dense){
+        strcpy(file,filebase);
+        strcat(file,"thetas.dat");
+        FILE *outanimation=fopen(file,"wb");
+        fwrite(yloc,sizeof(float),N,outanimation);
+        fflush(outanimation);
+        fclose(outanimation);
+
+        makecoupling(t,y2,f2,&pars);
+        cublasGetVector(2*N, sizeof(float), f2, 1, floc, 1);
+        strcpy(file,filebase);
+        strcat(file,"couplings.dat");
+        FILE *outcouplings=fopen(file,"wb");
+        fwrite(floc,sizeof(float),2*N,outcouplings);
+        fflush(outcouplings);
+        fclose(outcouplings);
+        strcpy(file,filebase);
+        strcat(file,"times.dat");
+        FILE *outtimes=fopen(file,"wb");
+        fclose(outtimes);
+      }
+
+    }
+
     float *y_eval=dp45_run(&t, &h, t1, &pars, &step_eval);
+
+    //final state output with coupling appended
+    parameters *p = &pars;
+    y_eval=dp45_eval(t,p->t_eval[p->n_eval-1]);
+    makey2<<<(p->N+255)/256, 256>>>(y_eval, p->N, p->y2, p->omegas, t);
+    makecoupling(t,p->y2,p->f2,p);
+    cublasGetVector(p->N, sizeof(float), y_eval, 1, p->yloc, 1);
+    cublasGetVector(2*p->N, sizeof(float), p->f2, 1, p->floc, 1);
+
+    strcpy(file,p->filebase);
+    strcat(file,"fs.dat");
+    FILE *outlast=fopen(file,"wb");
+
+    fwrite(p->yloc,sizeof(float),p->N,outlast);
+    fwrite(&t,sizeof(float),1,outlast);
+    fwrite(&h,sizeof(float),1,outlast);
+    fwrite(p->floc,sizeof(float),2*p->N,outlast);
+    fflush(outlast);
+    fclose(outlast);
 
     strcpy(file,filebase);
     strcat(file,".out");
@@ -596,6 +646,7 @@ int main (int argc, char* argv[]) {
     fclose(out);
 
     free(yloc);
+    free(floc);
     free(omegasloc);
     if(!A){
       free(adjloc);
