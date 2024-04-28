@@ -7,7 +7,7 @@
 #include <math.h>
 #include <sys/time.h>
 #include <unistd.h>
-#include "dp45.h"
+#include "dp45_64.h"
 #include "cublas_v2.h"
 #include <curand_kernel.h>
 
