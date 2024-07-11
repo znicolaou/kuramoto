@@ -96,8 +96,8 @@ def resDMDpseudo(U,V,S,X,Y,zs,evals,evecs,filebase,verbose):
         #inverse power iteration with C2
         for n in range(len(zs_new)):
             z=zs_new[n]
+            print('%f\t%f\t%f'%(n/len(zs_new),np.real(z),np.imag(z)),end='\n',flush=True)
             i=np.argmin(np.abs(z-evals))
-            print('%f'%(n/len(zs_new)),end='\r',flush=True)
             xi=evecs[:,i]
             A2=(A-z*B)
             C2=np.conjugate(A2).T.dot(A2)
@@ -195,10 +195,7 @@ if __name__ == "__main__":
 
     s,u,v,errs=PCA(X,filebase0,verbose)
     f=interp1d(errs[0],errs[1])
-    if errs[-1]<pcatol:
-        r=int(root_scalar(lambda x:f(x)-pcatol,bracket=(errs[0][0],errs[0][-1])).root)
-    else:
-        r=int(errs[0][-1])
+    r=int(root_scalar(lambda x:f(x)-pcatol,bracket=(errs[0][0],errs[0][-1])).root)
     if verbose:
         print('rank:',r,flush=True)
     evals,evecs,res=resDMD(u[:,:r],v[:r,:],s[:r],X,Y,filebase0,verbose)
