@@ -4,7 +4,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import timeit
-from scipy.linalg import svdvals, svd, eig
+from scipy.linalg import svdvals, svd, eig, lu_factor, lu_solve
 from scipy.interpolate import interp1d
 from scipy.optimize import root_scalar
 import argparse
@@ -101,9 +101,11 @@ def resDMDpseudo(U,V,S,X,Y,zs,evals,evecs,filebase,verbose):
             xi=evecs[:,i]
             A2=(A-z*B)
             C2=np.conjugate(A2).T.dot(A2)
+            lu,piv=lu_factor(C2)
             residue=np.linalg.norm(A2.dot(xi))
             for m in range(100):
-                xi=np.linalg.solve(C2,xi)
+                # xi=np.linalg.solve(C2,xi)
+                xi=lu_solve((lu,piv),xi)
                 xi=xi/np.linalg.norm(xi)
                 newres=np.linalg.norm(A2.dot(xi))
                 if np.linalg.norm((residue-newres)/residue)<1E-3:
