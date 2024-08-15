@@ -11,7 +11,8 @@ import argparse
 
 ###########################################################################
 def PCA(X,filebase,verbose=False):
-    if not os.path.exists(filebase+'s.dat'):
+    # if not os.path.exists(filebase+'s.dat'):
+    if True:
         start=timeit.default_timer()
         u,s,v=svd(X)
         stop=timeit.default_timer()
@@ -48,7 +49,8 @@ def PCA(X,filebase,verbose=False):
 
 ###########################################################################
 def resDMD(U,V,S,X,Y,filebase,verbose=False):
-    if not os.path.exists(filebase+'res.dat'):
+    # if not os.path.exists(filebase+'res.dat'):
+    if True:
         start=timeit.default_timer()
         A=Y.dot(np.conjugate(V).T*1/S)
         B=X.dot(np.conjugate(V).T*1/S)
@@ -83,7 +85,8 @@ def resDMDpseudo(U,V,S,X,Y,zs,evals,evecs,filebase,verbose):
     xis=[]
     start=timeit.default_timer()
 
-    if os.path.exists(filebase+'zs.dat'):
+    # if os.path.exists(filebase+'zs.dat'):
+    if False:
         zs_prev=np.fromfile(filebase+'zs.dat',dtype=np.complex128).tolist()
         zs_new=np.setdiff1d(zs,zs_prev)
         vals=np.fromfile(filebase+'pseudo.dat',dtype=np.float64).tolist()
@@ -187,11 +190,15 @@ if __name__ == "__main__":
         thetas=thetas+[theta]
         n=n+1
 
-    X=np.concatenate([theta[:-1] for theta in thetas],axis=0)
-    X=np.concatenate([np.sin(X), np.cos(X), np.ones((X.shape[0],1))],axis=1)
-    Y=np.concatenate([theta[1:] for theta in thetas],axis=0)
-    Y=np.concatenate([np.sin(Y), np.cos(Y), np.ones((Y.shape[0],1))],axis=1)
+    rs=np.concatenate([np.abs(np.mean(np.exp(1j*theta),axis=1))[:-1,np.newaxis] for theta in thetas],axis=0)
+    Thetas=np.concatenate([np.unwrap(np.angle(np.mean(np.exp(1j*theta),axis=1)))[:-1,np.newaxis] for theta in thetas],axis=0)
+    X=np.concatenate([thetas[i][:-1] for i in range(len(thetas))],axis=0)
+    X=np.concatenate([np.cos(X),np.sin(X),rs,np.cos(Thetas),np.sin(Thetas)],axis=1)
 
+    rs=np.concatenate([np.abs(np.mean(np.exp(1j*theta),axis=1))[1:,np.newaxis] for theta in thetas],axis=0)
+    Thetas=np.concatenate([np.unwrap(np.angle(np.mean(np.exp(1j*theta),axis=1)))[1:,np.newaxis] for theta in thetas],axis=0)
+    Y=np.concatenate([thetas[i][1:] for i in range(len(thetas))],axis=0)
+    Y=np.concatenate([np.cos(Y),np.sin(Y),rs,np.cos(Thetas),np.sin(Thetas)],axis=1)
     if verbose:
         print('shape:', X.shape, flush=True)
 
