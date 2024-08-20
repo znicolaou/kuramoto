@@ -9,7 +9,7 @@ from scipy.interpolate import interp1d
 from scipy.optimize import root_scalar
 import argparse
 
-###########################################################################
+""
 def PCA(X,filebase,verbose=False):
     # if not os.path.exists(filebase+'s.dat'):
     if True:
@@ -45,9 +45,9 @@ def PCA(X,filebase,verbose=False):
         errs=np.fromfile(filebase+'errs.dat').reshape((2,-1))
 
     return s,u,v,errs
-###########################################################################
+""
 
-###########################################################################
+""
 def resDMD(U,V,S,X,Y,filebase,verbose=False):
     # if not os.path.exists(filebase+'res.dat'):
     if True:
@@ -73,9 +73,9 @@ def resDMD(U,V,S,X,Y,filebase,verbose=False):
         evals=np.fromfile(filebase+'evals.dat',dtype=np.complex128)
         evecs=np.fromfile(filebase+'evecs.dat',dtype=np.complex128).reshape((evals.shape[0],evals.shape[0]))
     return evals,evecs,res
-###########################################################################
+""
 
-###########################################################################
+""
 def resDMDpseudo(U,V,S,X,Y,zs,evals,evecs,filebase,verbose):
     n0=0
     zs_prev=[]
@@ -95,14 +95,14 @@ def resDMDpseudo(U,V,S,X,Y,zs,evals,evecs,filebase,verbose):
 
     if len(zs_new)>0:
         A=Y.dot(np.conjugate(V).T*1/S)
-        B=X.dot(np.conjugate(V).T*1/S)
         #inverse power iteration with C2
         for n in range(len(zs_new)):
             z=zs_new[n]
-            print('%f\t%f\t%f'%(n/len(zs_new),np.real(z),np.imag(z)),end='\n',flush=True)
+            if verbose:
+                print('%f\t%f\t%f'%(n/len(zs_new),np.real(z),np.imag(z)),end='\r',flush=True)
             i=np.argmin(np.abs(z-evals))
             xi=evecs[:,i]
-            A2=(A-z*B)
+            A2=(A-z*U)
             C2=np.conjugate(A2).T.dot(A2)
             lu,piv=lu_factor(C2)
             residue=np.linalg.norm(A2.dot(xi))
@@ -142,8 +142,7 @@ def resDMDpseudo(U,V,S,X,Y,zs,evals,evecs,filebase,verbose):
 
 
     return zs_prev,vals,xis,its
-###########################################################################
-
+""
 if __name__ == "__main__":
 
     #Command line arguments
