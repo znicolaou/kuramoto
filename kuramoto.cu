@@ -178,7 +178,7 @@ void step_eval(float t, float h, float* y, void *pars){
     fflush(out);
     fclose(out);
   }
-  if(p->dense){
+  if(p->dense>=1){
     strcpy(file,p->filebase);
     strcat(file, "times.dat");
     FILE *outtimes = fopen(file,"ab");
@@ -188,11 +188,12 @@ void step_eval(float t, float h, float* y, void *pars){
   }
 
   FILE *outanimation, *outcouplings;
-  if(p->dense){
+  if(p->dense>=1){
     strcpy(file,p->filebase);
     strcat(file, "thetas.dat");
     outanimation = fopen(file,"ab");
-
+  }
+  if(p->dense>=2){
     strcpy(file,p->filebase);
     strcat(file, "couplings.dat");
     outcouplings = fopen(file,"ab");
@@ -217,11 +218,12 @@ void step_eval(float t, float h, float* y, void *pars){
     cublasSdot(p->handle,p->N, p->y2, 2, p->ones, 1, &X);
     cublasSdot(p->handle,p->N, p->y2+1, 2, p->ones, 1, &Y);
     r[ind++]=pow((X/p->N*X/p->N+Y/p->N*Y/p->N),0.5);
-    if(p->dense){
+    if(p->dense>=1){
       cublasGetVector(p->N, sizeof(float), y_eval, 1, p->yloc, 1);
       fwrite(p->yloc,sizeof(float),p->N,outanimation);
       fflush(outanimation);
-
+    }
+    if(p->dense>=2){
       makecoupling(t,p->y2,p->f2,pars);
       cublasGetVector(2*p->N, sizeof(float), p->f2, 1, p->floc, 1);
       fwrite(p->floc,sizeof(float),2*p->N,outcouplings);
@@ -230,8 +232,10 @@ void step_eval(float t, float h, float* y, void *pars){
 
     p->eval_i++;
   }
-  if(p->dense){
+  if(p->dense>=1){
     fclose(outanimation);
+  }
+  if(p->dense>=2){
     fclose(outcouplings);
   }
 
@@ -284,12 +288,12 @@ int main (int argc, char* argv[]) {
     fixed=0;
     char c;
     int help=1;
-    int dense=1;
+    int dense=3;
     int normal=0;
     int reload=0;
 
     while (optind < argc) {
-      if ((c = getopt(argc, argv, "N:K:I:c:g:t:d:f:s:r:a:hvDFnRA")) != -1) {
+      if ((c = getopt(argc, argv, "N:K:I:D:c:g:t:d:f:s:r:a:hvFnRA")) != -1) {
         switch (c) {
           case 'N':
               N = (int)atoi(optarg);
@@ -328,7 +332,7 @@ int main (int argc, char* argv[]) {
               atl = (float)atof(optarg);
               break;
           case 'D':
-              dense = 0;
+              dense = (int)atoi(optarg);
               break;
           case 'R':
               reload = 1;
@@ -354,16 +358,16 @@ int main (int argc, char* argv[]) {
       }
     }
     if (help) {
-      printf("usage:\tkuramoto [-hvnDRFA] [-N N] [-K K]\n");
+      printf("usage:\tkuramoto [-hvnRFA] [-N N] [-K K] [-D D]\n");
       printf("\t[-c c] [-t t] [-d dt] [-f f] [-s seed] \n");
       printf("\t[-I init] [-r rtol] [-a atol] [-g gpu] filebase \n\n");
       printf("-h for help \n");
       printf("-v for verbose \n");
       printf("-n for normal random frequencies (default is cauchy) \n");
-      printf("-D to supress dense output \n");
       printf("-R to reload adjacency, frequencies, and initial conditions from files if possible\n");
       printf("-F for fixed timestep \n");
       printf("-A to regenerate volcano adjacency each step to save memory \n");
+      printf("D is the output density level. 0 for minimal, 1 for phases, 2 for phases and couplings, 3 for phases, couplings, and adjacency\n");
       printf("N is number of oscillators. Default 5000. \n");
       printf("K is rank of volcano adjacency. Default 5. \n");
       printf("c is the coupling coefficient. Default 3.0. \n");
@@ -564,9 +568,11 @@ int main (int argc, char* argv[]) {
           getadj(&pars);
           if (dense){
             cublasGetVector(N*N, sizeof(float), adj, 1, adjloc, 1);
-            in=fopen(file,"wb");
-            fwrite(adjloc,sizeof(float),N*N,in);
-            fclose(in);
+            if (dense>=3) {
+              in=fopen(file,"wb");
+              fwrite(adjloc,sizeof(float),N*N,in);
+              fclose(in);
+            }
           }
         }
     }
@@ -590,14 +596,20 @@ int main (int argc, char* argv[]) {
       fflush(outorder);
       fclose(outorder);
 
-      if(dense){
+      if(dense>=1){
         strcpy(file,filebase);
         strcat(file,"thetas.dat");
         FILE *outanimation=fopen(file,"wb");
         fwrite(yloc,sizeof(float),N,outanimation);
         fflush(outanimation);
         fclose(outanimation);
+        strcpy(file,filebase);
+        strcat(file,"times.dat");
+        FILE *outtimes=fopen(file,"wb");
+        fclose(outtimes);
 
+      }
+      if(dense>=2){
         makecoupling(t,y2,f2,&pars);
         cublasGetVector(2*N, sizeof(float), f2, 1, floc, 1);
         strcpy(file,filebase);
@@ -606,10 +618,6 @@ int main (int argc, char* argv[]) {
         fwrite(floc,sizeof(float),2*N,outcouplings);
         fflush(outcouplings);
         fclose(outcouplings);
-        strcpy(file,filebase);
-        strcat(file,"times.dat");
-        FILE *outtimes=fopen(file,"wb");
-        fclose(outtimes);
       }
 
     }
