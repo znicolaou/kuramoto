@@ -21,7 +21,7 @@ for i in `seq 1 1`; do
 	echo $N $K $dK
 	mkdir -p data/$N/$K
 	mkdir -p data/${N}_lorentz/$K
-	./kuramoto -N $N -K $K -s $seed -c 1.75 -t 100 -d 0.01 -nvDR data/$N/$K/$seed > /dev/null
-	./kuramoto -N $N -K $K -s $seed -c 1.75 -t 100 -d 0.01 -vDR data/${N}_lorentz/$K/$seed > /dev/null
+	./kuramoto -N $N -K $K -s $seed -c 1.75 -t 100 -d 0.01 -D 0 -nvR data/$N/$K/$seed > /dev/null
+	./kuramoto -N $N -K $K -s $seed -c 1.75 -t 100 -d 0.01 -D 0 -vR data/${N}_lorentz/$K/$seed > /dev/null
 done
 done

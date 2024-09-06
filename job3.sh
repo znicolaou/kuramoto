@@ -22,9 +22,9 @@ for i in `seq 1 4`; do
 	echo $N $K $dK
 	mkdir -p data/$N/$K
 	if [ $N -lt 40000 ]; then
-		./kuramoto -N $N -K $K -s $seed -c 1.75 -t 100 -d 0.01 -nvDR data/$N/$K/$seed > /dev/null
+		./kuramoto -N $N -K $K -s $seed -c 1.75 -t 100 -d 0.01 -D 0 -nvR data/$N/$K/$seed > /dev/null
 	else
-		./kuramoto -N $N -K $K -s $seed -c 1.75 -t 100 -d 0.01 -nvDAR data/$N/$K/$seed > /dev/null
+		./kuramoto -N $N -K $K -s $seed -c 1.75 -t 100 -d 0.01 -D 0 -nvAR data/$N/$K/$seed > /dev/null
 	fi
 done
 done
