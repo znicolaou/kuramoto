@@ -1,15 +1,14 @@
 #!/usr/bin/env python
 import sys
 import os
-import matplotlib.pyplot as plt
 import numpy as np
 import timeit
-from scipy.linalg import svdvals, svd, eig, lu_factor, lu_solve
+from scipy.linalg import svd, eig, lu_factor, lu_solve
 from scipy.interpolate import interp1d
 from scipy.optimize import root_scalar
 import argparse
 
-def PCA(X,filebase,verbose=False, reload=False):
+def PCA(X,filebase,verbose=False,reload=False,save=False):
     if not reload or not os.path.exists(filebase+'s.dat'):
         start=timeit.default_timer()
         u,s,v=svd(X)
@@ -33,16 +32,17 @@ def PCA(X,filebase,verbose=False, reload=False):
         ranks=np.arange(1,rank)
     for r in ranks:
         errs=errs+[np.linalg.norm(X-u[:,:r].dot(s[:r,np.newaxis]*v[:r]))/np.linalg.norm(X)]
-    np.save(filebase+'s.npy',s)
-    np.save(filebase+'u.npy',u)
-    np.save(filebase+'v.npy',v)
     errs=np.array([ranks,errs])
-    np.save(filebase+'errs.npy',errs)
 
+    if save:
+        np.save(filebase+'s.npy',s)
+        np.save(filebase+'u.npy',u)
+        np.save(filebase+'v.npy',v)
+        np.save(filebase+'errs.npy',errs)
 
     return s,u,v,errs
 
-def resDMD(U,V,S,X,Y,filebase,verbose=False,reload=False):
+def resDMD(U,V,S,X,Y,filebase,verbose=False,reload=False,save=True):
     if not reload or not os.path.exists(filebase+'res.dat'):
         start=timeit.default_timer()
         A=Y.dot(np.conjugate(V).T*1/S)
@@ -60,11 +60,12 @@ def resDMD(U,V,S,X,Y,filebase,verbose=False,reload=False):
 
         phis=(np.conjugate(V).T*1/S).dot(evecs)
         bs=X.dot(phis)/np.linalg.norm(Y.dot(phis),axis=0)
-        np.save(filebase+'res.npy',res)
-        np.save(filebase+'evals.npy',evals)
-        np.save(filebase+'evecs.npy',evecs)
-        np.save(filebase+'phis.npy',phis)
-        np.save(filebase+'bs.npy',bs)
+        if save:
+            np.save(filebase+'res.npy',res)
+            np.save(filebase+'evals.npy',evals)
+            np.save(filebase+'evecs.npy',evecs)
+            np.save(filebase+'phis.npy',phis)
+            np.save(filebase+'bs.npy',bs)
     else:
         res=np.load(filebase+'res.npy')
         evals=np.load(filebase+'evals.npy')
@@ -73,11 +74,11 @@ def resDMD(U,V,S,X,Y,filebase,verbose=False,reload=False):
         bs=np.load(filebase+'bs.npy')
     return evals,evecs,res,phis,bs
 
-def resDMDpseudo(U,V,S,X,Y,zs,evals,evecs,filebase,verbose,reload=False):
+def resDMDpseudo(U,V,S,X,Y,zs,evals,evecs,filebase,verbose,reload=False,save=True):
     n0=0
     zs_prev=[]
     zs_new=zs
-    vals=[]
+    pseudo=[]
     its=[]
     xis=[]
     start=timeit.default_timer()
@@ -85,7 +86,7 @@ def resDMDpseudo(U,V,S,X,Y,zs,evals,evecs,filebase,verbose,reload=False):
     if reload and os.path.exists(filebase+'zs.dat'):
         zs_prev=np.load(filebase+'zs.npy').tolist()
         zs_new=np.setdiff1d(zs,zs_prev)
-        vals=np.load(filebase+'pseudo.npy').tolist()
+        pseudo=np.load(filebase+'pseudo.npy').tolist()
         its=np.load(filebase+'its.npy').tolist()
         xis=list(np.load(filebase+'xis.npy').reshape((len(zs_prev),-1)))
 
@@ -111,20 +112,21 @@ def resDMDpseudo(U,V,S,X,Y,zs,evals,evecs,filebase,verbose,reload=False):
                     break
                 residue=newres
             zs_prev=zs_prev+[z]
-            vals=vals+[residue]
+            pseudo=pseudo+[residue]
             xis=xis+[xi]
             its=its+[m]
-            np.save(filebase+'zs.npy',np.array(zs_prev))
-            np.save(filebase+'pseudo.npy',np.array(vals))
-            np.save(filebase+'xis.npy',np.array(xis))
-            np.save(filebase+'its.npy',np.array(its))
+            if save:
+                np.save(filebase+'zs.npy',np.array(zs_prev))
+                np.save(filebase+'pseudo.npy',np.array(pseudo))
+                np.save(filebase+'xis.npy',np.array(xis))
+                np.save(filebase+'its.npy',np.array(its))
     stop=timeit.default_timer()
     if verbose:
         print()
         print('pseudospectra runtime:',stop-start,flush=True)
 
 
-    return zs_prev,vals,xis,its
+    return zs_prev,pseudo,xis,its
 
 if __name__ == "__main__":
 
@@ -211,6 +213,6 @@ if __name__ == "__main__":
 
     zs=np.exp((murs[:,np.newaxis]+1j*muis[np.newaxis,:]).ravel()*dt)
 
-    zs_prevs,vals,xis,its=resDMDpseudo(u[:,:r],v[:r,:],s[:r],X,Y,zs,evals,evecs,filebase0,verbose)
+    zs_prevs,pseudo,xis,its=resDMDpseudo(u[:,:r],v[:r,:],s[:r],X,Y,zs,evals,evecs,filebase0,verbose)
     stop=timeit.default_timer()
     print('runtime:',stop-start)
