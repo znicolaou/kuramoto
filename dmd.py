@@ -27,7 +27,7 @@ def PCA(X,filebase,verbose=False,reload=False,save=False):
     print('full rank:', rank)
     errs=[]
     if rank>10:
-        ranks=np.arange(rank//10,rank,rank//10)
+        ranks=np.arange(rank//10,rank+rank//10,rank//10)
     else:
         ranks=np.arange(1,rank)
     for r in ranks:
@@ -133,23 +133,33 @@ if __name__ == "__main__":
     #Command line arguments
     parser = argparse.ArgumentParser(description='Numerical integration of networks of phase oscillators.')
     parser.add_argument("--filebase", type=str, required=True, dest='filebase', help='Base string for file output.')
+    parser.add_argument("--filesuffix", type=str, required=False, dest='filesuffix', default='', help='Suffix string for file output.')
     parser.add_argument("--verbose", type=int, required=False, dest='verbose', default=1, help='Verbose printing.')
     parser.add_argument("--pcatol", type=float, required=False, dest='pcatol', default=1E-10, help='Reconstruction error cutoff for pca.')
     parser.add_argument("--resmax", type=float, required=False, dest='resmax', default=None, help='Maximum residue.')
-    parser.add_argument("--scaler", type=float, required=False, dest='scaler', default=20, help='Pseudospectra real scale.')
-    parser.add_argument("--scalei", type=float, required=False, dest='scalei', default=25, help='Pseudospectra imaginary scale.')
+    parser.add_argument("--scaler", type=float, required=False, dest='scaler', default=5, help='Pseudospectra real scale.')
+    parser.add_argument("--scalei", type=float, required=False, dest='scalei', default=10, help='Pseudospectra imaginary scale.')
     parser.add_argument("--nr", type=int, required=False, dest='nr', default=26, help='Number of real pseudospectra points.')
     parser.add_argument("--ni", type=int, required=False, dest='ni', default=26, help='Number of imaginary pseudospectra points.')
     parser.add_argument("--num_traj", type=int, required=False, dest='num_traj', default=0, help='Number of trajectories.')
+    parser.add_argument("--order", type=int, required=False, dest='order', default=1, help='Number of trajectories.')
+    parser.add_argument("--seed", type=int, required=False, dest='seed', default=1, help='Random seed for library.')
+    parser.add_argument("--M", type=int, required=False, dest='M', default=1, help='Number of angle multiples to include in library.')
+    parser.add_argument("--D", type=int, required=False, dest='D', default=0, help='Number of angle pairs to include in library.')
     args = parser.parse_args()
 
     print(*sys.argv,flush=True)
     filebase0 = args.filebase
+    filesuffix = args.filesuffix
     verbose = args.verbose
     pcatol = args.pcatol
     resmax = args.resmax
     scaler = args.scaler
     scalei = args.scalei
+    order = args.order
+    seed = args.seed
+    D = args.D
+    M = args.M
     nr = args.nr
     ni = args.ni
     num_traj = args.num_traj
@@ -163,7 +173,7 @@ if __name__ == "__main__":
         filebase='%s%i'%(filebase0,n)
         file=open(filebase+'.out')
         lines=file.readlines()
-        N,K,t1,dt,c,seed=np.array(lines[0].split(),dtype=np.float64)
+        N,K,t1,dt,c,seed0=np.array(lines[0].split(),dtype=np.float64)
         N=int(N)
         K=int(K)
         if verbose:
@@ -178,8 +188,8 @@ if __name__ == "__main__":
         #lastind=np.min([len(theta)-1,5*np.where(orders<np.sqrt(np.pi/(4*N)))[0][1]])
         lastind=len(theta)
         lengths=lengths+[lastind]
-        print(lastind)
         theta=theta[:lastind]
+
         theta=theta-np.mean(omega)*dt*np.arange(theta.shape[0])[:,np.newaxis]
         thetas=thetas+[theta]
         n=n+1
@@ -189,21 +199,57 @@ if __name__ == "__main__":
             read_traj=False
 
 
-    X=np.concatenate([thetas[i][:-1] for i in range(len(thetas))],axis=0)
-    X=np.concatenate([np.cos(X),np.sin(X)],axis=1)
+    num_traj=n
+    np.random.seed(seed)
+    includes=np.random.choice(np.arange(N*(N-1)//2),size=D,replace=False)
+    ls=np.array([(i+1)*N-i*(i-1)//2-1-2*i for i in range(N)],dtype=int)
 
-    Y=np.concatenate([thetas[i][1:] for i in range(len(thetas))],axis=0)
-    Y=np.concatenate([np.cos(Y),np.sin(Y)],axis=1)
+    Nt=thetas[0].shape[0]
+    X=np.zeros((num_traj,M*N+2*D,Nt-1))
+    Y=np.zeros((num_traj,M*N+2*D,Nt-1))
+
+    for n in range(num_traj):
+        theta=thetas[n]
+        l=0
+        k=0
+        for m in range(M):
+            for i in range(N):
+                X[n][k]=(m+1)*theta[:-1,i]
+                Y[n][k]=(m+1)*theta[1:,i]
+                k=k+1
+        for m in range(D):
+            i=np.where(ls>=includes[m])[0][0]
+            if i==0:
+                j=includes[m]
+            else:
+                j=includes[m]-ls[i-1]+i
+            X[n][k]=theta[:-1,i]-theta[:-1,j]
+            Y[n][k]=theta[1:,i]-theta[1:,j]
+            k=k+1
+            X[n][k]=theta[:-1,i]+theta[:-1,j]
+            Y[n][k]=theta[1:,i]+theta[1:,j]
+            k=k+1
+
+    X=np.concatenate(X,axis=1)
+    X=np.concatenate([np.cos(X),np.sin(X)],axis=0).T
+    Y=np.concatenate(Y,axis=1)
+    Y=np.concatenate([np.cos(Y),np.sin(Y)],axis=0).T
     if verbose:
         print('shape:', X.shape, flush=True)
 
-    np.save(filebase0+'n0s.npy',np.array(lengths))
-    s,u,v,errs=PCA(X,filebase0,verbose)
-    f=interp1d(errs[0],errs[1])
-    r=int(root_scalar(lambda x:f(x)-pcatol,bracket=(errs[0][0],errs[0][-1])).root)
+    filebase=filebase0+filesuffix
+    np.save(filebase+'n0s.npy',np.array(lengths))
+
+    s,u,v,errs=PCA(X,filebase,verbose)
+    r=int(errs[-1][0])
+    try:
+        f=interp1d(errs[0],errs[1])
+        r=int(root_scalar(lambda x:f(x)-pcatol,bracket=(errs[0][0],errs[0][-1])).root)
+    except:
+        pass
     if verbose:
         print('rank:',r,flush=True)
-    evals,evecs,res,phis,bs=resDMD(u[:,:r],v[:r,:],s[:r],X,Y,filebase0,verbose)
+    evals,evecs,res,phis,bs=resDMD(u[:,:r],v[:r,:],s[:r],X,Y,filebase,verbose)
 
     if nr>1:
         murs=-scaler+2*scaler*np.arange(nr)/(nr-1)
@@ -213,6 +259,6 @@ if __name__ == "__main__":
 
     zs=np.exp((murs[:,np.newaxis]+1j*muis[np.newaxis,:]).ravel()*dt)
 
-    zs_prevs,pseudo,xis,its=resDMDpseudo(u[:,:r],v[:r,:],s[:r],X,Y,zs,evals,evecs,filebase0,verbose)
+    zs_prevs,pseudo,xis,its=resDMDpseudo(u[:,:r],v[:r,:],s[:r],X,Y,zs,evals,evecs,filebase,verbose)
     stop=timeit.default_timer()
     print('runtime:',stop-start)
