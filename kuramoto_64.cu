@@ -1,7 +1,7 @@
 //Zachary G. Nicolaou 2/10/2024
 //Integrate the Kuramoto model with adaptive Runke Kutta timestepping on a gpu
 //Default adjacency, initial conditions, and frequencies follow volcano
-//nvcc -lcuda -lcublas -lcurand -O3 -o kuramoto dp45.cu kuramoto.cu
+//nvcc -lcuda -lcublas -lcurand -O3 -o kuramoto_64 dp45_64.cu kuramoto_64.cu
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>

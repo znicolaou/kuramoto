@@ -38,7 +38,7 @@ def PCA(X,filebase,verbose=False,reload=False,save=False):
         np.save(filebase+'s.npy',s)
         np.save(filebase+'u.npy',u)
         np.save(filebase+'v.npy',v)
-        np.save(filebase+'errs.npy',errs)
+    np.save(filebase+'errs.npy',errs)
 
     return s,u,v,errs
 
@@ -241,7 +241,7 @@ if __name__ == "__main__":
     np.save(filebase+'n0s.npy',np.array(lengths))
 
     s,u,v,errs=PCA(X,filebase,verbose)
-    r=int(errs[-1][0])
+    r=int(errs[0][-1])
     try:
         f=interp1d(errs[0],errs[1])
         r=int(root_scalar(lambda x:f(x)-pcatol,bracket=(errs[0][0],errs[0][-1])).root)
