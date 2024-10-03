@@ -137,8 +137,10 @@ if __name__ == "__main__":
     parser.add_argument("--verbose", type=int, required=False, dest='verbose', default=1, help='Verbose printing.')
     parser.add_argument("--pcatol", type=float, required=False, dest='pcatol', default=1E-10, help='Reconstruction error cutoff for pca.')
     parser.add_argument("--resmax", type=float, required=False, dest='resmax', default=None, help='Maximum residue.')
-    parser.add_argument("--scaler", type=float, required=False, dest='scaler', default=3, help='Pseudospectra real scale.')
-    parser.add_argument("--scalei", type=float, required=False, dest='scalei', default=20, help='Pseudospectra imaginary scale.')
+    parser.add_argument("--minr", type=float, required=False, dest='minr', default=-3, help='Pseudospectra real scale.')
+    parser.add_argument("--maxr", type=float, required=False, dest='maxr', default=1, help='Pseudospectra real scale.')
+    parser.add_argument("--mini", type=float, required=False, dest='mini', default=-15, help='Pseudospectra imaginary scale.')
+    parser.add_argument("--maxi", type=float, required=False, dest='maxi', default=15, help='Pseudospectra imaginary scale.')
     parser.add_argument("--nr", type=int, required=False, dest='nr', default=26, help='Number of real pseudospectra points.')
     parser.add_argument("--ni", type=int, required=False, dest='ni', default=26, help='Number of imaginary pseudospectra points.')
     parser.add_argument("--num_traj", type=int, required=False, dest='num_traj', default=0, help='Number of trajectories.')
@@ -154,8 +156,10 @@ if __name__ == "__main__":
     verbose = args.verbose
     pcatol = args.pcatol
     resmax = args.resmax
-    scaler = args.scaler
-    scalei = args.scalei
+    minr = args.minr
+    maxr = args.maxr
+    mini = args.mini
+    maxi = args.maxi
     order = args.order
     seed = args.seed
     D = args.D
@@ -252,10 +256,10 @@ if __name__ == "__main__":
     evals,evecs,res,phis,bs=resDMD(u[:,:r],v[:r,:],s[:r],X,Y,filebase,verbose)
 
     if nr>1:
-        murs=-scaler+2*scaler*np.arange(nr)/(nr-1)
+        murs=minr+(maxr-minr)*np.arange(nr)/(nr-1)
     else:
         murs=np.array([0])
-    muis=-scalei+2*scalei*np.arange(ni)/(ni-1)
+    muis=mini+(maxi-mini)*np.arange(ni)/(ni-1)
 
     zs=np.exp((murs[:,np.newaxis]+1j*muis[np.newaxis,:]).ravel()*dt)
 
