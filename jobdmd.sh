@@ -3,8 +3,8 @@
 #SBATCH --partition=cpu-g2
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=24
-#SBATCH --mem=500G
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=200G
 #SBATCH --time=02-00:00:00 # Max runtime in DD-HH:MM:SS format.
 #SBATCH --export=all
 #SBATCH --output=outs/%a.out # where STDOUT goes
