@@ -3,8 +3,8 @@
 #SBATCH --partition=cpu-g2
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=200G
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=400G
 #SBATCH --time=02-00:00:00 # Max runtime in DD-HH:MM:SS format.
 #SBATCH --export=all
 #SBATCH --output=outs/%a.out # where STDOUT goes
@@ -12,13 +12,14 @@
 #SBATCH --array=0-18
 module load cuda
 
+i0=7
 M=$((SLURM_ARRAY_TASK_ID%6))
-i=$((7+SLURM_ARRAY_TASK_ID/6))
-N=10000
-echo $SLURM_ARRAY_TASK_ID $M $i $N
+i=$((i0+SLURM_ARRAY_TASK_ID/6))
+N=`head data/dmd${i}/0.out -n 1 | cut -d' ' -f1`
+echo "$SLURM_ARRAY_TASK_ID data/dmd${i} M=$M  N=$N"
 if [ $M -eq 0 ]; then
-	./dmd.py --M 1 --D 0 --filesuffix $M --filebase data/dmd${i}/ &
+	./dmd.py --M 1 --D 0 --seed 100 --filesuffix $M --filebase data/dmd${i}/ &
 else
-	./dmd.py --M $M --D $((N/2*M)) --filesuffix $M --filebase data/dmd${i}/ & 
+	./dmd.py --M $M --D $((N/2*M)) --seed 100 --filesuffix $M --filebase data/dmd${i}/ & 
 fi
 wait

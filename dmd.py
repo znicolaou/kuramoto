@@ -66,12 +66,16 @@ def resDMD(U,V,S,X,Y,filebase,verbose=False,reload=False,save=True):
             np.save(filebase+'evecs.npy',evecs)
             np.save(filebase+'phis.npy',phis)
             np.save(filebase+'bs.npy',bs)
+            np.save(filebase+'A.npy',A)
+            np.save(filebase+'U.npy',U)
     else:
         res=np.load(filebase+'res.npy')
         evals=np.load(filebase+'evals.npy')
         evecs=np.load(filebase+'evecs.npy')
         phis=np.load(filebase+'phis.npy')
         bs=np.load(filebase+'bs.npy')
+        A=np.load(filebase+'A.npy')
+        U=np.load(filebase+'U.npy')
     return evals,evecs,res,phis,bs
 
 def resDMDpseudo(U,V,S,X,Y,zs,evals,evecs,filebase,verbose,reload=False,save=True):
