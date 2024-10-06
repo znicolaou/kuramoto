@@ -3,15 +3,38 @@ import sys
 import os
 import numpy as np
 import timeit
-from scipy.linalg import svd, eig, lu_factor, lu_solve
+from scipy.linalg import svd, eig, lu_factor, lu_solve,eigh
 from scipy.interpolate import interp1d
 from scipy.optimize import root_scalar
 import argparse
 
-def PCA(X,filebase,verbose=False,reload=False,save=False):
-    if not reload or not os.path.exists(filebase+'s.dat'):
+def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
+    if not load or not os.path.exists(filebase+'s.npy'):
         start=timeit.default_timer()
-        u,s,v=svd(X)
+        if rank is None:
+            u,s,v=svd(X,full_matrices=False,check_finite=False)
+        else:
+            if X.shape[1]<X.shape[0]:
+                n=np.min(X.shape)
+                evals,evecs=eigh(np.conjugate(X).T.dot(X),check_finite=False,driver='evx',subset_by_index=[n-rank,n-1])
+                if verbose:
+                    stop=timeit.default_timer()
+                    print("dsyevx runtime: ",stop-start)
+                u2,s2,v2=svd(X.dot(evecs),full_matrices=False)
+                s=s2
+                u=u2
+                v=v2.dot(evecs.T)
+            else:
+                n=np.min(X.shape)
+                evals,evecs=eigh(X.dot(np.conjugate(X).T),check_finite=False,driver='evx',subset_by_index=[n-rank,n-1])
+                if verbose:
+                    stop=timeit.default_timer()
+                    print("transpose dsyevx runtime: ",stop-start)
+                u2,s2,v2=svd(X.T.dot(evecs),full_matrices=False)
+                s=s2
+                v=u2.T
+                u=(v2.dot(evecs.T)).T
+
         stop=timeit.default_timer()
         if verbose:
             print('svd runtime:',stop-start,flush=True)
@@ -20,65 +43,94 @@ def PCA(X,filebase,verbose=False,reload=False,save=False):
         u=np.load(filebase+'u.npy')
         v=np.load(filebase+'v.npy')
 
-    try:
-        rank=np.where(s<s.max() * max(X.shape[0],X.shape[1]) * np.finfo(X.dtype).eps)[0][0]
-    except:
-        rank=min(X.shape[0],X.shape[1])
-    print('full rank:', rank)
-    errs=[]
-    if rank>10:
-        ranks=np.arange(rank//10,rank+rank//10,rank//10)
+    if rank is None:
+        try:
+            rank=np.where(s<s.max() * max(X.shape[0],X.shape[1]) * np.finfo(X.dtype).eps)[0][0]
+        except:
+            rank=min(X.shape[0],X.shape[1])
     else:
-        ranks=np.arange(1,rank)
-    for r in ranks:
-        errs=errs+[np.linalg.norm(X-u[:,:r].dot(s[:r,np.newaxis]*v[:r]))/np.linalg.norm(X)]
-    errs=np.array([ranks,errs])
+        #The normal matrix eigenvalues/squared singular values can only be computed to numerical precision
+        #so the numerical rank and svd precision is reduced for rank not None
+        #rank=len(np.where(evals>evals.max() * min(X.shape[0],X.shape[1]) * np.finfo(X.dtype).eps)[0])a
+        #but we can allow bigger Ritz space, which continues to decrease pca error for a bit more before saturating
+        try:
+            rank=np.where(s<s.max() * max(X.shape[0],X.shape[1]) * np.finfo(X.dtype).eps)[0][0]
+        except:
+            pass
+        order=np.flip(np.argsort(s))
+        s=s[order]
+        u=u[:,order]
+        v=v[order]
 
-    if save:
+    print('numerical rank:', rank)
+    if not load or not os.path.exists(filebase+'errs.npy'):
+        errs=[]
+        if rank>10:
+            ranks=np.arange(rank-10*(rank//10),rank+1,rank//10)
+        else:
+            ranks=np.arange(1,rank)
+        for r in ranks:
+            errs=errs+[np.linalg.norm(X-u[:,:r].dot(s[:r,np.newaxis]*v[:r]))/np.linalg.norm(X)]
+        errs=np.array([ranks,errs])
+
+        if save:
+            np.save(filebase+'X.npy',X)
+            np.save(filebase+'u.npy',u)
+            np.save(filebase+'v.npy',v)
+    
         np.save(filebase+'s.npy',s)
-        np.save(filebase+'u.npy',u)
-        np.save(filebase+'v.npy',v)
-    np.save(filebase+'errs.npy',errs)
-
+        np.save(filebase+'errs.npy',errs)
+    else:
+        errs=np.load(filebase+'errs.npy')
     return s,u,v,errs
 
-def resDMD(U,V,S,X,Y,filebase,verbose=False,reload=False,save=True):
-    if not reload or not os.path.exists(filebase+'res.dat'):
+def resDMD(U,V,S,X,Y,filebase,verbose=False,load=False,save=True):
+    if not load or not os.path.exists(filebase+'res.npy'):
         start=timeit.default_timer()
         A=Y.dot(np.conjugate(V).T*1/S)
+        if save:
+            np.save(filebase+'A.npy',A)
+            np.save(filebase+'U.npy',U)
+            np.save(filebase+'V.npy',V)
+
         Ktilde=np.conjugate(U.T).dot(A)
-        evals,evecs=np.linalg.eig(Ktilde)
+
+        evals,levecs,revecs=eig(Ktilde,left=True,right=True)
         stop=timeit.default_timer()
         if verbose:
             print('eig runtime:',stop-start,flush=True)
 
         start=timeit.default_timer()
-        res=np.linalg.norm(A.dot(evecs)-evals[np.newaxis,:]*U.dot(evecs),axis=0)
+        res=np.linalg.norm(A.dot(revecs)-evals[np.newaxis,:]*U.dot(revecs),axis=0)
         stop=timeit.default_timer()
         if verbose:
             print('residue runtime:',stop-start,flush=True)
-
-        phis=(np.conjugate(V).T*1/S).dot(evecs)
+        #This is usually most memory expensive...
+        #let's try to save some memory by copying a deleting s,u,v
+        phis=(np.conjugate(V).T*1/S).dot(revecs)
+        diag=np.sum(np.conjugate(levecs)*revecs,axis=0)
+        revecsinv=1/diag[:,np.newaxis]*(np.conjugate(levecs).T)
+        phitildes=revecsinv.dot(V*S[:,np.newaxis])
         bs=X.dot(phis)/np.linalg.norm(Y.dot(phis),axis=0)
         if save:
             np.save(filebase+'res.npy',res)
             np.save(filebase+'evals.npy',evals)
-            np.save(filebase+'evecs.npy',evecs)
+            np.save(filebase+'revecs.npy',revecs)
+            np.save(filebase+'levecs.npy',levecs)
             np.save(filebase+'phis.npy',phis)
+            np.save(filebase+'phitildes.npy',phitildes)
             np.save(filebase+'bs.npy',bs)
-            np.save(filebase+'A.npy',A)
-            np.save(filebase+'U.npy',U)
+
     else:
         res=np.load(filebase+'res.npy')
         evals=np.load(filebase+'evals.npy')
-        evecs=np.load(filebase+'evecs.npy')
+        revecs=np.load(filebase+'evecs.npy')
         phis=np.load(filebase+'phis.npy')
         bs=np.load(filebase+'bs.npy')
         A=np.load(filebase+'A.npy')
-        U=np.load(filebase+'U.npy')
-    return evals,evecs,res,phis,bs
+    return evals,revecs,res,phis,bs,A
 
-def resDMDpseudo(U,V,S,X,Y,zs,evals,evecs,filebase,verbose,reload=False,save=True):
+def resDMDpseudo(U,A,zs,evals,evecs,filebase,verbose,load=False,save=True):
     n0=0
     zs_prev=[]
     zs_new=zs
@@ -87,7 +139,7 @@ def resDMDpseudo(U,V,S,X,Y,zs,evals,evecs,filebase,verbose,reload=False,save=Tru
     xis=[]
     start=timeit.default_timer()
 
-    if reload and os.path.exists(filebase+'zs.dat'):
+    if load and os.path.exists(filebase+'zs.npy'):
         zs_prev=np.load(filebase+'zs.npy').tolist()
         zs_new=np.setdiff1d(zs,zs_prev)
         pseudo=np.load(filebase+'pseudo.npy').tolist()
@@ -95,7 +147,6 @@ def resDMDpseudo(U,V,S,X,Y,zs,evals,evecs,filebase,verbose,reload=False,save=Tru
         xis=list(np.load(filebase+'xis.npy').reshape((len(zs_prev),-1)))
 
     if len(zs_new)>0:
-        A=Y.dot(np.conjugate(V).T*1/S)
         for n in range(len(zs_new)):
             z=zs_new[n]
             if verbose:
@@ -139,7 +190,7 @@ if __name__ == "__main__":
     parser.add_argument("--filebase", type=str, required=True, dest='filebase', help='Base string for file output.')
     parser.add_argument("--filesuffix", type=str, required=False, dest='filesuffix', default='', help='Suffix string for file output.')
     parser.add_argument("--verbose", type=int, required=False, dest='verbose', default=1, help='Verbose printing.')
-    parser.add_argument("--pcatol", type=float, required=False, dest='pcatol', default=1E-10, help='Reconstruction error cutoff for pca.')
+    parser.add_argument("--pcatol", type=float, required=False, dest='pcatol', default=1E-7, help='Reconstruction error cutoff for pca.')
     parser.add_argument("--resmax", type=float, required=False, dest='resmax', default=None, help='Maximum residue.')
     parser.add_argument("--minr", type=float, required=False, dest='minr', default=-3, help='Pseudospectra real scale.')
     parser.add_argument("--maxr", type=float, required=False, dest='maxr', default=1, help='Pseudospectra real scale.')
@@ -152,6 +203,10 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, required=False, dest='seed', default=1, help='Random seed for library.')
     parser.add_argument("--M", type=int, required=False, dest='M', default=1, help='Number of angle multiples to include in library.')
     parser.add_argument("--D", type=int, required=False, dest='D', default=0, help='Number of angle pairs to include in library.')
+    parser.add_argument("--rank", type=int, required=False, dest='rank', default=None, help='Ritz rank for svd.')
+    parser.add_argument("--savepca", type=int, required=False, dest='savepca', default=0, help='Save dense PCA data.')
+    parser.add_argument("--runpseudo", type=int, required=False, dest='runpseudo', default=0, help='Run the pseudospectrum calculation.')
+    parser.add_argument("--load", type=int, required=False, dest='load', default=0, help='Load data from previous runs.')
     args = parser.parse_args()
 
     print(*sys.argv,flush=True)
@@ -171,6 +226,10 @@ if __name__ == "__main__":
     nr = args.nr
     ni = args.ni
     num_traj = args.num_traj
+    rank = args.rank
+    save = args.savepca
+    runpseudo = args.runpseudo
+    load = args.load
 
     start=timeit.default_timer()
     thetas=[]
@@ -193,7 +252,6 @@ if __name__ == "__main__":
         N=len(omega)
         theta=np.fromfile(filebase+'thetas.dat',dtype=np.float64).reshape((-1,N))
         orders=np.fromfile(filebase+'order.dat',dtype=np.float64)
-        #lastind=np.min([len(theta)-1,5*np.where(orders<np.sqrt(np.pi/(4*N)))[0][1]])
         lastind=len(theta)
         lengths=lengths+[lastind]
         theta=theta[:lastind]
@@ -213,8 +271,7 @@ if __name__ == "__main__":
     ls=np.array([(i+1)*N-i*(i-1)//2-1-2*i for i in range(N)],dtype=int)
 
     Nt=thetas[0].shape[0]
-    X=np.zeros((num_traj,M*N+2*D,Nt-1))
-    Y=np.zeros((num_traj,M*N+2*D,Nt-1))
+    X=np.zeros((num_traj,M*N+2*D,Nt))
 
     for n in range(num_traj):
         theta=thetas[n]
@@ -222,8 +279,7 @@ if __name__ == "__main__":
         k=0
         for m in range(M):
             for i in range(N):
-                X[n][k]=(m+1)*theta[:-1,i]
-                Y[n][k]=(m+1)*theta[1:,i]
+                X[n][k]=(m+1)*theta[:,i]
                 k=k+1
         for m in range(D):
             i=np.where(ls>=includes[m])[0][0]
@@ -231,24 +287,22 @@ if __name__ == "__main__":
                 j=includes[m]
             else:
                 j=includes[m]-ls[i-1]+i
-            X[n][k]=theta[:-1,i]-theta[:-1,j]
-            Y[n][k]=theta[1:,i]-theta[1:,j]
+            X[n][k]=theta[:,i]-theta[:,j]
             k=k+1
-            X[n][k]=theta[:-1,i]+theta[:-1,j]
-            Y[n][k]=theta[1:,i]+theta[1:,j]
+            X[n][k]=theta[:,i]+theta[:,j]
             k=k+1
 
     X=np.concatenate(X,axis=1)
     X=np.concatenate([np.cos(X),np.sin(X)],axis=0).T
-    Y=np.concatenate(Y,axis=1)
-    Y=np.concatenate([np.cos(Y),np.sin(Y)],axis=0).T
+    Xinds=np.setdiff1d(np.arange(np.sum(lengths)),np.cumsum(lengths)-1)
+    Yinds=np.setdiff1d(np.arange(np.sum(lengths)),np.concatenate([[0],np.cumsum(lengths)[:-1]]))
     if verbose:
-        print('shape:', X.shape, flush=True)
+        print('shape:', X[Xinds].shape, flush=True)
 
     filebase=filebase0+filesuffix
     np.save(filebase+'n0s.npy',np.array(lengths))
 
-    s,u,v,errs=PCA(X,filebase,verbose)
+    s,u,v,errs=PCA(X[Xinds],filebase,verbose,rank=rank,save=save,load=load)
     r=int(errs[0][-1])
     try:
         f=interp1d(errs[0],errs[1])
@@ -257,7 +311,15 @@ if __name__ == "__main__":
         pass
     if verbose:
         print('rank:',r,flush=True)
-    evals,evecs,res,phis,bs=resDMD(u[:,:r],v[:r,:],s[:r],X,Y,filebase,verbose)
+        if(r==errs[0][-1]):
+            print('Warning: numerical precision may be limiting achievable pcatol')
+    U=u[:,:r].copy()
+    del u
+    V=v[:r,:].copy()
+    del v
+    S=s[:r].copy()
+    del s
+    evals,evecs,res,phis,bs,A=resDMD(U,V,S,X[Xinds],X[Yinds],filebase,verbose,load=load)
 
     if nr>1:
         murs=minr+(maxr-minr)*np.arange(nr)/(nr-1)
@@ -267,6 +329,7 @@ if __name__ == "__main__":
 
     zs=np.exp((murs[:,np.newaxis]+1j*muis[np.newaxis,:]).ravel()*dt)
 
-    zs_prevs,pseudo,xis,its=resDMDpseudo(u[:,:r],v[:r,:],s[:r],X,Y,zs,evals,evecs,filebase,verbose)
+    if runpseudo:
+        zs_prevs,pseudo,xis,its=resDMDpseudo(U,A,zs,evals,evecs,filebase,verbose,load=load)
     stop=timeit.default_timer()
     print('runtime:',stop-start)
