@@ -85,30 +85,38 @@ def resDMD(U,V,S,X,Y,filebase,verbose=False,reload=False,save=True):
     if not reload or not os.path.exists(filebase+'res.dat'):
         start=timeit.default_timer()
         A=Y.dot(np.conjugate(V).T*1/S)
+        if save:
+            np.save(filebase+'A.npy',A)
+            np.save(filebase+'U.npy',U)
+            np.save(filebase+'V.npy',V)
+
         Ktilde=np.conjugate(U.T).dot(A)
 
-        evals,evecs=np.linalg.eig(Ktilde)
+        evals,levecs,revecs=eig(Ktilde,left=True,right=True)
         stop=timeit.default_timer()
         if verbose:
             print('eig runtime:',stop-start,flush=True)
 
         start=timeit.default_timer()
-        res=np.linalg.norm(A.dot(evecs)-evals[np.newaxis,:]*U.dot(evecs),axis=0)
+        res=np.linalg.norm(A.dot(revecs)-evals[np.newaxis,:]*U.dot(revecs),axis=0)
         stop=timeit.default_timer()
         if verbose:
             print('residue runtime:',stop-start,flush=True)
         #This is usually most memory expensive...
         #let's try to save some memory by copying a deleting s,u,v
-        phis=(np.conjugate(V).T*1/S).dot(evecs)
+        phis=(np.conjugate(V).T*1/S).dot(revecs)
+        diag=np.sum(np.conjugate(levecs)*revecs,axis=0)
+        revecsinv=1/diag[:,np.newaxis]*(np.conjugate(levecs).T)
+        phitildes=revecsinv.dot(V*S[:,np.newaxis])
         bs=X.dot(phis)/np.linalg.norm(Y.dot(phis),axis=0)
         if save:
             np.save(filebase+'res.npy',res)
             np.save(filebase+'evals.npy',evals)
-            np.save(filebase+'evecs.npy',evecs)
+            np.save(filebase+'revecs.npy',revecs)
+            np.save(filebase+'levecs.npy',levecs)
             np.save(filebase+'phis.npy',phis)
+            np.save(filebase+'phitildes.npy',phitildes)
             np.save(filebase+'bs.npy',bs)
-            np.save(filebase+'A.npy',A)
-            np.save(filebase+'U.npy',U)
 
     else:
         res=np.load(filebase+'res.npy')
