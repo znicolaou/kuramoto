@@ -124,7 +124,7 @@ def resDMD(U,V,S,X,Y,filebase,verbose=False,reload=False,save=True):
         evecs=np.load(filebase+'evecs.npy')
         phis=np.load(filebase+'phis.npy')
         bs=np.load(filebase+'bs.npy')
-    return evals,evecs,res,phis,bs,A
+    return evals,revecs,res,phis,bs,A
 
 def resDMDpseudo(U,A,zs,evals,evecs,filebase,verbose,reload=False,save=True):
     n0=0
