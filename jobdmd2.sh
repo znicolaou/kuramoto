@@ -18,10 +18,8 @@ i=$((i0+SLURM_ARRAY_TASK_ID/6))
 N=`head data/dmd${i}/0.out -n 1 | cut -d' ' -f1`
 echo "$SLURM_ARRAY_TASK_ID data/dmd${i} M=$M  N=$N"
 if [ $M -eq 0 ]; then
-	#./dmd2.py --M 1 --D 0 --seed 100 --rank 3000 --filesuffix ${M}_r --filebase data/dmd${i}/ &
 	./dmd2.py --M 1 --D 0 --seed 100 --filesuffix ${M} --filebase data/dmd${i}/ &
 else
-	#./dmd2.py --M $M --D $((N/2*M)) --seed 100 --rank 3000 --filesuffix ${M}_r --filebase data/dmd${i}/ & 
 	./dmd2.py --M $M --D $((N/2*M)) --seed 100 --filesuffix ${M} --filebase data/dmd${i}/ & 
 fi
 wait

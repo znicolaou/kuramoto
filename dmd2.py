@@ -3,8 +3,7 @@ import sys
 import os
 import numpy as np
 import timeit
-from scipy.linalg import svd, eig, lu_factor, lu_solve
-from scipy.sparse.linalg import eigsh
+from scipy.linalg import svd, eig, lu_factor, lu_solve,eigh
 from scipy.interpolate import interp1d
 from scipy.optimize import root_scalar
 import argparse
@@ -16,23 +15,25 @@ def PCA(X,filebase,verbose=False,rank=None,reload=False,save=False):
             u,s,v=svd(X,full_matrices=False,check_finite=False)
         else:
             if X.shape[1]<X.shape[0]:
-                eval2,evec2=eigsh(np.conjugate(X).T.dot(X),k=rank)
+                n=np.min(X.shape)
+                evals,evecs=eigh(np.conjugate(X).T.dot(X),check_finite=False,driver='evx',subset_by_index=[n-rank,n-1])
                 if verbose:
                     stop=timeit.default_timer()
-                    print("sparse eig runtime: ",stop-start)
-                u2,s2,v2=svd(X.dot(evec2),full_matrices=False)
+                    print("dsyevx runtime: ",stop-start)
+                u2,s2,v2=svd(X.dot(evecs),full_matrices=False)
                 s=s2
                 u=u2
-                v=v2.dot(evec2.T)
+                v=v2.dot(evecs.T)
             else:
-                eval3,evec3=eigsh(X.dot(np.conjugate(X).T),k=rank)
+                n=np.min(X.shape)
+                evals,evecs=eigh(X.dot(np.conjugate(X).T),check_finite=False,driver='evx',subset_by_index=[n-rank,n-1])
                 if verbose:
                     stop=timeit.default_timer()
-                    print("transpose sparse eig runtime: ",stop-start)
-                u3,s3,v3=svd(X.T.dot(evec3),full_matrices=False)
-                s=s3
-                v=u3.T
-                u=(v3.dot(evec3.T)).T
+                    print("transpose dsyevx runtime: ",stop-start)
+                u2,s2,v2=svd(X.T.dot(evecs),full_matrices=False)
+                s=s2
+                v=u2.T
+                u=(v2.dot(evecs.T)).T
 
         stop=timeit.default_timer()
         if verbose:
@@ -48,13 +49,20 @@ def PCA(X,filebase,verbose=False,rank=None,reload=False,save=False):
         except:
             rank=min(X.shape[0],X.shape[1])
     else:
-        rank=len(np.where(s>s.max() * max(X.shape[0],X.shape[1]) * np.finfo(X.dtype).eps)[0])
+        #The normal matrix eigenvalues/squared singular values can only be computed to numerical precision
+        #so the numerical rank and svd precision is reduced for rank not None
+        #rank=len(np.where(evals>evals.max() * min(X.shape[0],X.shape[1]) * np.finfo(X.dtype).eps)[0])a
+        #but we can allow bigger Ritz space, which continues to decrease pca error for a bit more before saturating
+        try:
+            rank=np.where(s<s.max() * max(X.shape[0],X.shape[1]) * np.finfo(X.dtype).eps)[0][0]
+        except:
+            pass
         order=np.flip(np.argsort(s))
         s=s[order]
         u=u[:,order]
         v=v[order]
 
-    print('full rank:', rank)
+    print('numerical rank:', rank)
     errs=[]
     if rank>10:
         ranks=np.arange(rank-10*(rank//10),rank+1,rank//10)
@@ -169,7 +177,7 @@ if __name__ == "__main__":
     parser.add_argument("--filebase", type=str, required=True, dest='filebase', help='Base string for file output.')
     parser.add_argument("--filesuffix", type=str, required=False, dest='filesuffix', default='', help='Suffix string for file output.')
     parser.add_argument("--verbose", type=int, required=False, dest='verbose', default=1, help='Verbose printing.')
-    parser.add_argument("--pcatol", type=float, required=False, dest='pcatol', default=1E-6, help='Reconstruction error cutoff for pca.')
+    parser.add_argument("--pcatol", type=float, required=False, dest='pcatol', default=1E-7, help='Reconstruction error cutoff for pca.')
     parser.add_argument("--resmax", type=float, required=False, dest='resmax', default=None, help='Maximum residue.')
     parser.add_argument("--minr", type=float, required=False, dest='minr', default=-3, help='Pseudospectra real scale.')
     parser.add_argument("--maxr", type=float, required=False, dest='maxr', default=1, help='Pseudospectra real scale.')
@@ -182,7 +190,7 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, required=False, dest='seed', default=1, help='Random seed for library.')
     parser.add_argument("--M", type=int, required=False, dest='M', default=1, help='Number of angle multiples to include in library.')
     parser.add_argument("--D", type=int, required=False, dest='D', default=0, help='Number of angle pairs to include in library.')
-    parser.add_argument("--rank", type=int, required=False, dest='rank', default=None, help='Rank for sparse svd.')
+    parser.add_argument("--rank", type=int, required=False, dest='rank', default=None, help='Ritz rank for svd.')
     parser.add_argument("--savepca", type=int, required=False, dest='savepca', default=0, help='Save dense PCA data.')
     args = parser.parse_args()
 
@@ -286,6 +294,8 @@ if __name__ == "__main__":
         pass
     if verbose:
         print('rank:',r,flush=True)
+        if(r==errs[0][-1]):
+            print('Warning: numerical precision may be limiting achievable pcatol')
     evals,evecs,res,phis,bs,A=resDMD(u[:,:r],v[:r,:],s[:r],X[Xinds],X[Yinds],filebase,verbose)
 
     if nr>1:
