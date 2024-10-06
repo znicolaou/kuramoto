@@ -97,7 +97,8 @@ def resDMD(U,V,S,X,Y,filebase,verbose=False,reload=False,save=True):
         stop=timeit.default_timer()
         if verbose:
             print('residue runtime:',stop-start,flush=True)
-
+        #This is usually most memory expensive...
+        #let's try to save some memory by copying a deleting s,u,v
         phis=(np.conjugate(V).T*1/S).dot(evecs)
         bs=X.dot(phis)/np.linalg.norm(Y.dot(phis),axis=0)
         if save:
@@ -296,7 +297,13 @@ if __name__ == "__main__":
         print('rank:',r,flush=True)
         if(r==errs[0][-1]):
             print('Warning: numerical precision may be limiting achievable pcatol')
-    evals,evecs,res,phis,bs,A=resDMD(u[:,:r],v[:r,:],s[:r],X[Xinds],X[Yinds],filebase,verbose)
+    U=u[:,:r].copy()
+    del u
+    V=v[:r,:].copy()
+    del v
+    S=s[:r].copy()
+    del s
+    evals,evecs,res,phis,bs,A=resDMD(U,V,S,X[Xinds],X[Yinds],filebase,verbose)
 
     if nr>1:
         murs=minr+(maxr-minr)*np.arange(nr)/(nr-1)
@@ -306,6 +313,6 @@ if __name__ == "__main__":
 
     zs=np.exp((murs[:,np.newaxis]+1j*muis[np.newaxis,:]).ravel()*dt)
 
-    zs_prevs,pseudo,xis,its=resDMDpseudo(u[:,:r],A,zs,evals,evecs,filebase,verbose)
+    zs_prevs,pseudo,xis,its=resDMDpseudo(U,A,zs,evals,evecs,filebase,verbose)
     stop=timeit.default_timer()
     print('runtime:',stop-start)
