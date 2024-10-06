@@ -64,6 +64,7 @@ def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
 
     print('numerical rank:', rank)
     if not load or not os.path.exists(filebase+'errs.npy'):
+        start=timeit.default_timer()
         errs=[]
         if rank>10:
             ranks=np.arange(rank-10*(rank//10),rank+1,rank//10)
@@ -80,6 +81,9 @@ def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
     
         np.save(filebase+'s.npy',s)
         np.save(filebase+'errs.npy',errs)
+        stop=timeit.default_timer()
+        if verbose:
+            print('errs runtime:',stop-start,flush=True)
     else:
         errs=np.load(filebase+'errs.npy')
     return s,u,v,errs
