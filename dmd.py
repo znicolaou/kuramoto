@@ -62,7 +62,7 @@ def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
         u=u[:,order]
         v=v[order]
 
-    print('numerical rank:', rank)
+    print('numerical rank:', rank,flush=True)
     if not load or not os.path.exists(filebase+'errs.npy'):
         start=timeit.default_timer()
         errs=[]
@@ -111,11 +111,15 @@ def resDMD(U,V,S,X,Y,filebase,verbose=False,load=False,save=True):
             print('residue runtime:',stop-start,flush=True)
         #This is usually most memory expensive...
         #let's try to save some memory by copying a deleting s,u,v
+        start=timeit.default_timer()
         phis=(np.conjugate(V).T*1/S).dot(revecs)
         diag=np.sum(np.conjugate(levecs)*revecs,axis=0)
         revecsinv=1/diag[:,np.newaxis]*(np.conjugate(levecs).T)
         phitildes=revecsinv.dot(V*S[:,np.newaxis])
         bs=X.dot(phis)/np.linalg.norm(Y.dot(phis),axis=0)
+        stop=timeit.default_timer()
+        if verbose:
+            print('amplitude runtime:',stop-start,flush=True)
         if save:
             np.save(filebase+'res.npy',res)
             np.save(filebase+'evals.npy',evals)
