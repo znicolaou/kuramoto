@@ -67,7 +67,7 @@ def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
         start=timeit.default_timer()
         errs=[]
         if rank>10:
-            ranks=np.arange(rank-10*(rank//10),rank+1,rank//10)
+            ranks=np.arange(rank-5*(rank//10),rank+1,rank//10)
         else:
             ranks=np.arange(1,rank)
         for r in ranks:
