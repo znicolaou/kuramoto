@@ -8,7 +8,8 @@ from scipy.interpolate import interp1d
 from scipy.optimize import root_scalar
 import argparse
 from dmd import *
-import pysindy as ps 
+import pysindy as ps
+
 
 if __name__ == "__main__":
 
@@ -137,5 +138,6 @@ if __name__ == "__main__":
     if runpseudo:
         zs_prevs,pseudo,xis,its=resDMDpseudo(U,A,zs,evals,evecs,filebase,verbose,load=load)
     stop=timeit.default_timer()
+    if verbose:
+        printmem(locals())
     print('runtime:',stop-start)
-

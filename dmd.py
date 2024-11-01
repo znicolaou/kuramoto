@@ -8,6 +8,24 @@ from scipy.interpolate import interp1d
 from scipy.optimize import root_scalar
 import argparse
 
+def printmem(caller):
+    tot=0
+    mem=0
+    for key in globals().keys():
+        if key[0] != '_':
+            if isinstance(globals()[key],np.ndarray):
+                mem=np.prod(globals()[key].shape)*globals()[key].dtype.itemsize/1024/1024/1024
+                print(key,mem,"Gb")
+                tot=tot+mem
+    print(caller.keys())
+    for key in caller.keys():
+        if key[0] != '_':
+            if isinstance(caller[key],np.ndarray):
+                mem=np.prod(caller[key].shape)*caller[key].dtype.itemsize/1024/1024/1024
+                print(key,mem,"Gb")
+                tot=tot+mem
+    print("Total",tot,"Gb")
+
 def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
     if not load or not os.path.exists(filebase+'s.npy'):
         start=timeit.default_timer()
@@ -78,7 +96,7 @@ def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
             np.save(filebase+'X.npy',X)
             np.save(filebase+'u.npy',u)
             np.save(filebase+'v.npy',v)
-    
+
         np.save(filebase+'s.npy',s)
         np.save(filebase+'errs.npy',errs)
         stop=timeit.default_timer()
@@ -86,6 +104,8 @@ def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
             print('errs runtime:',stop-start,flush=True)
     else:
         errs=np.load(filebase+'errs.npy')
+    if verbose:
+        printmem(locals())
     return s,u,v,errs
 
 def resDMD(U,V,S,X,Y,filebase,verbose=False,load=False,save=True):
@@ -136,6 +156,8 @@ def resDMD(U,V,S,X,Y,filebase,verbose=False,load=False,save=True):
         phis=np.load(filebase+'phis.npy')
         bs=np.load(filebase+'bs.npy')
         A=np.load(filebase+'A.npy')
+    if verbose:
+        printmem(locals())
     return evals,revecs,res,phis,bs,A
 
 def resDMDpseudo(U,A,zs,evals,evecs,filebase,verbose,load=False,save=True):
@@ -188,7 +210,8 @@ def resDMDpseudo(U,A,zs,evals,evecs,filebase,verbose,load=False,save=True):
         print()
         print('pseudospectra runtime:',stop-start,flush=True)
 
-
+    if verbose:
+        printmem(locals())
     return zs_prev,pseudo,xis,its
 
 if __name__ == "__main__":
@@ -340,4 +363,6 @@ if __name__ == "__main__":
     if runpseudo:
         zs_prevs,pseudo,xis,its=resDMDpseudo(U,A,zs,evals,evecs,filebase,verbose,load=load)
     stop=timeit.default_timer()
+    if verbose:
+        printmem(locals())
     print('runtime:',stop-start)
