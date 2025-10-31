@@ -22,6 +22,7 @@ def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
         else:
             # u,s,v=randomized_svd(X, n_components=rank, n_oversamples=rank, random_state=0)
             u,s,v=da.linalg.svd_compressed(X, rank, n_oversamples=rank, compute=False)
+            s=s.compute()
 
         stop=timeit.default_timer()
         if verbose:
