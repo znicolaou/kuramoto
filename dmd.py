@@ -21,8 +21,8 @@ def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
             u,s,v=svd(X,full_matrices=False,check_finite=False)
         else:
             # u,s,v=randomized_svd(X, n_components=rank, n_oversamples=rank, random_state=0)
-            u,s,v=da.linalg.svd_compressed(X, rank, n_oversamples=rank, compute=False)
-            s=s.compute()
+            u,sda,v=da.linalg.svd_compressed(X, rank, n_oversamples=rank, compute=False)
+            s=sda.compute()
 
         stop=timeit.default_timer()
         if verbose:
@@ -58,13 +58,18 @@ def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
     print('numerical rank:', rank,flush=True)
     if not load or not os.path.exists(filebase+'errs.npy'):
         start=timeit.default_timer()
+        ud=u.compute()
+        vd=v.compute()
+        Xd=X.compute() #memory intensive, but much faster than dask
         errs=[]
         if rank>10:
             ranks=np.arange((rank//10),rank+1,rank//25)
         else:
             ranks=np.arange(1,rank)
         for r in ranks:
-            errs=errs+[(da.linalg.norm(X[Xinds]-u[:,:r].dot(s[:r,np.newaxis]*v[:r]))/da.linalg.norm(X[Xinds])).compute()]
+            Xtilde=(ud[:,:r]*s[:r]).dot(vd[:r])
+            err=np.linalg.norm(Xd-Xtilde)/np.linalg.norm(X)
+            errs=errs+[err]
         errs=np.array([ranks,errs])
 
         np.save(filebase+'s.npy',s)
