@@ -246,65 +246,70 @@ if __name__ == "__main__":
     thetas=[]
     lengths=[]
     n=0
-    read_traj=True
-    while read_traj:
-        filebase='%s%i'%(filebase0,n)
-        file=open(filebase+'.out')
-        lines=file.readlines()
-        N,K,t1,dt,c,seed0=np.array(lines[0].split(),dtype=np.float64)
-        N=int(N)
-        K=int(K)
-        if verbose:
-            print(lines[1])
-            print(lines[-1])
-        file.close()
 
-        omega=np.fromfile(filebase+'frequencies.dat',dtype=np.float64)
-        N=len(omega)
-        theta=np.fromfile(filebase+'thetas.dat',dtype=np.float64).reshape((-1,N))
-        orders=np.fromfile(filebase+'order.dat',dtype=np.float64)
-        lastind=len(theta)
-        lengths=lengths+[lastind]
-        theta=theta[:lastind]
+    if load:
+        X=da.from_npy_stack(filebase0+filesuffix+'X')
 
-        theta=theta-np.mean(omega)*dt*np.arange(theta.shape[0])[:,np.newaxis]
-        thetas=thetas+[theta]
-        n=n+1
-        if num_traj == 0:
-            read_traj=os.path.exists('%s%i.out'%(filebase0,n))
-        elif n>=num_traj:
-            read_traj=False
+    else:
+        read_traj=True
+        while read_traj:
+            filebase='%s%i'%(filebase0,n)
+            file=open(filebase+'.out')
+            lines=file.readlines()
+            N,K,t1,dt,c,seed0=np.array(lines[0].split(),dtype=np.float64)
+            N=int(N)
+            K=int(K)
+            if verbose:
+                print(lines[1])
+                print(lines[-1])
+            file.close()
+
+            omega=np.fromfile(filebase+'frequencies.dat',dtype=np.float64)
+            N=len(omega)
+            theta=np.fromfile(filebase+'thetas.dat',dtype=np.float64).reshape((-1,N))
+            orders=np.fromfile(filebase+'order.dat',dtype=np.float64)
+            lastind=len(theta)
+            lengths=lengths+[lastind]
+            theta=theta[:lastind]
+
+            theta=theta-np.mean(omega)*dt*np.arange(theta.shape[0])[:,np.newaxis]
+            thetas=thetas+[theta]
+            n=n+1
+            if num_traj == 0:
+                read_traj=os.path.exists('%s%i.out'%(filebase0,n))
+            elif n>=num_traj:
+                read_traj=False
 
 
-    num_traj=n
-    np.random.seed(seed)
-    includes=np.random.choice(np.arange(N*(N-1)//2),size=D,replace=False)
-    ls=np.array([(i+1)*N-i*(i-1)//2-1-2*i for i in range(N)],dtype=int)
+        num_traj=n
+        np.random.seed(seed)
+        includes=np.random.choice(np.arange(N*(N-1)//2),size=D,replace=False)
+        ls=np.array([(i+1)*N-i*(i-1)//2-1-2*i for i in range(N)],dtype=int)
 
-    Nt=thetas[0].shape[0]
-    X=da.zeros((num_traj,M*N+2*D,Nt))
+        Nt=thetas[0].shape[0]
+        X=da.zeros((num_traj,M*N+2*D,Nt))
 
-    for n in range(num_traj):
-        theta=thetas[n]
-        l=0
-        k=0
-        for m in range(M):
-            for i in range(N):
-                X[n][k]=(m+1)*theta[:,i]
+        for n in range(num_traj):
+            theta=thetas[n]
+            l=0
+            k=0
+            for m in range(M):
+                for i in range(N):
+                    X[n][k]=(m+1)*theta[:,i]
+                    k=k+1
+            for m in range(D):
+                i=np.where(ls>=includes[m])[0][0]
+                if i==0:
+                    j=includes[m]
+                else:
+                    j=includes[m]-ls[i-1]+i
+                X[n][k]=theta[:,i]-theta[:,j]
                 k=k+1
-        for m in range(D):
-            i=np.where(ls>=includes[m])[0][0]
-            if i==0:
-                j=includes[m]
-            else:
-                j=includes[m]-ls[i-1]+i
-            X[n][k]=theta[:,i]-theta[:,j]
-            k=k+1
-            X[n][k]=theta[:,i]+theta[:,j]
-            k=k+1
+                X[n][k]=theta[:,i]+theta[:,j]
+                k=k+1
 
-    X=da.concatenate(X,axis=1)
-    X=da.concatenate([np.cos(X),np.sin(X)],axis=0).T
+        X=da.concatenate(X,axis=1)
+        X=da.concatenate([np.cos(X),np.sin(X)],axis=0).T
     
 
     Xinds=np.setdiff1d(np.arange(np.sum(lengths)),np.cumsum(lengths)-1)
@@ -317,7 +322,8 @@ if __name__ == "__main__":
     if not os.path.exists(filebase+'X'):
         os.mkdir(filebase+'X')
     da.to_npy_stack(filebase+'X',X)
-    np.save(filebase+'n0s.npy',np.array(lengths))
+    if not os.path.exists(filebase+'n0s.npy'):
+        np.save(filebase+'n0s.npy',np.array(lengths))
 
     s,u,v,errs=PCA(X[Xinds],filebase,verbose,rank=rank,save=save,load=load)
     r=int(errs[0][-1])
