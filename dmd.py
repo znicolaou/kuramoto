@@ -20,8 +20,8 @@ def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
         if rank is None:
             u,s,v=svd(X,full_matrices=False,check_finite=False)
         else:
-            u,s,v=randomized_svd(X, n_components=rank, n_oversamples=rank, random_state=0)
-            # u,s,v=da.linalg.svd_compressed(X, rank, n_oversamples=rank, compute=False)
+            # u,s,v=randomized_svd(X, n_components=rank, n_oversamples=rank, random_state=0)
+            u,s,v=da.linalg.svd_compressed(X, rank, n_oversamples=rank, compute=False)
             # s=s.compute()
 
         stop=timeit.default_timer()
@@ -218,7 +218,7 @@ if __name__ == "__main__":
 
     print(*sys.argv,flush=True)
     # Create a LocalCluster with a memory limit of 4GB per worker
-    cluster = LocalCluster(n_workers=args.cpus, memory_limit=args.mem)
+    cluster = LocalCluster(n_workers=1, processes=False, memory_limit=args.mem)
     client = Client(cluster)
 
     filebase0 = args.filebase
@@ -314,15 +314,14 @@ if __name__ == "__main__":
         da.to_npy_stack(filebase+'X',da.from_array(X))
         del X
         X=da.from_npy_stack(filebase+'X')
+        if not os.path.exists(filebase+'n0s.npy'):
+            np.save(filebase+'n0s.npy',np.array(lengths))
     
 
     Xinds=np.setdiff1d(np.arange(np.sum(lengths)),np.cumsum(lengths)-1)
     Yinds=np.setdiff1d(np.arange(np.sum(lengths)),np.concatenate([[0],np.cumsum(lengths)[:-1]]))
     if verbose:
         print('shape:', X[Xinds].shape, flush=True)
-
-    if not os.path.exists(filebase+'n0s.npy'):
-        np.save(filebase+'n0s.npy',np.array(lengths))
 
     s,u,v,errs=PCA(X[Xinds],filebase,verbose,rank=rank,save=save,load=load)
     r=int(errs[0][-1])
