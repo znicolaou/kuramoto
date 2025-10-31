@@ -247,6 +247,8 @@ void step_eval(float t, float h, float* y, void *pars){
     fflush(outorder);
     fclose(outorder);
   }
+
+  if(p->dense>=0){
   cublasGetVector(p->N, sizeof(float), y, 1, p->yloc, 1);
 
   strcpy(file,p->filebase);
@@ -259,6 +261,7 @@ void step_eval(float t, float h, float* y, void *pars){
   fwrite(p->floc,sizeof(float),2*p->N,outlast);
   fflush(outlast);
   fclose(outlast);
+  }
 }
 
 int main (int argc, char* argv[]) {

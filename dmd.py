@@ -6,52 +6,18 @@ import timeit
 from scipy.linalg import svd, eig, lu_factor, lu_solve,eigh
 from scipy.interpolate import interp1d
 from scipy.optimize import root_scalar
+from sklearn.utils.extmath import randomized_svd
 import argparse
+from memory_profiler import profile
 
-def printmem(caller):
-    tot=0
-    mem=0
-    for key in globals().keys():
-        if key[0] != '_':
-            if isinstance(globals()[key],np.ndarray):
-                mem=np.prod(globals()[key].shape)*globals()[key].dtype.itemsize/1024/1024/1024
-                print(key,mem,"Gb")
-                tot=tot+mem
-    print(caller.keys())
-    for key in caller.keys():
-        if key[0] != '_':
-            if isinstance(caller[key],np.ndarray):
-                mem=np.prod(caller[key].shape)*caller[key].dtype.itemsize/1024/1024/1024
-                print(key,mem,"Gb")
-                tot=tot+mem
-    print("Total",tot,"Gb")
-
+@profile
 def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
     if not load or not os.path.exists(filebase+'s.npy'):
         start=timeit.default_timer()
         if rank is None:
             u,s,v=svd(X,full_matrices=False,check_finite=False)
         else:
-            if X.shape[1]<X.shape[0]:
-                n=np.min(X.shape)
-                evals,evecs=eigh(np.conjugate(X).T.dot(X),check_finite=False,driver='evx',subset_by_index=[n-rank,n-1])
-                if verbose:
-                    stop=timeit.default_timer()
-                    print("dsyevx runtime: ",stop-start)
-                u2,s2,v2=svd(X.dot(evecs),full_matrices=False)
-                s=s2
-                u=u2
-                v=v2.dot(evecs.T)
-            else:
-                n=np.min(X.shape)
-                evals,evecs=eigh(X.dot(np.conjugate(X).T),check_finite=False,driver='evx',subset_by_index=[n-rank,n-1])
-                if verbose:
-                    stop=timeit.default_timer()
-                    print("transpose dsyevx runtime: ",stop-start)
-                u2,s2,v2=svd(X.T.dot(evecs),full_matrices=False)
-                s=s2
-                v=u2.T
-                u=(v2.dot(evecs.T)).T
+            u,s,v=randomized_svd(X, n_components=rank, n_oversamples=rank, random_state=0)
 
         stop=timeit.default_timer()
         if verbose:
@@ -80,22 +46,22 @@ def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
         u=u[:,order]
         v=v[order]
 
+    if save:
+        np.save(filebase+'X.npy',X)
+        np.save(filebase+'u.npy',u)
+        np.save(filebase+'v.npy',v)
+    
     print('numerical rank:', rank,flush=True)
     if not load or not os.path.exists(filebase+'errs.npy'):
         start=timeit.default_timer()
         errs=[]
         if rank>10:
-            ranks=np.arange(rank-5*(rank//10),rank+1,rank//10)
+            ranks=np.arange((rank//10),rank+1,rank//25)
         else:
             ranks=np.arange(1,rank)
         for r in ranks:
             errs=errs+[np.linalg.norm(X-u[:,:r].dot(s[:r,np.newaxis]*v[:r]))/np.linalg.norm(X)]
         errs=np.array([ranks,errs])
-
-        if save:
-            np.save(filebase+'X.npy',X)
-            np.save(filebase+'u.npy',u)
-            np.save(filebase+'v.npy',v)
 
         np.save(filebase+'s.npy',s)
         np.save(filebase+'errs.npy',errs)
@@ -104,10 +70,10 @@ def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
             print('errs runtime:',stop-start,flush=True)
     else:
         errs=np.load(filebase+'errs.npy')
-    if verbose:
-        printmem(locals())
+    
     return s,u,v,errs
 
+@profile
 def resDMD(U,V,S,X,Y,filebase,verbose=False,load=False,save=True):
     if not load or not os.path.exists(filebase+'res.npy'):
         start=timeit.default_timer()
@@ -156,8 +122,7 @@ def resDMD(U,V,S,X,Y,filebase,verbose=False,load=False,save=True):
         phis=np.load(filebase+'phis.npy')
         bs=np.load(filebase+'bs.npy')
         A=np.load(filebase+'A.npy')
-    if verbose:
-        printmem(locals())
+    
     return evals,revecs,res,phis,bs,A
 
 def resDMDpseudo(U,A,zs,evals,evecs,filebase,verbose,load=False,save=True):
@@ -210,8 +175,6 @@ def resDMDpseudo(U,A,zs,evals,evecs,filebase,verbose,load=False,save=True):
         print()
         print('pseudospectra runtime:',stop-start,flush=True)
 
-    if verbose:
-        printmem(locals())
     return zs_prev,pseudo,xis,its
 
 if __name__ == "__main__":
@@ -363,6 +326,5 @@ if __name__ == "__main__":
     if runpseudo:
         zs_prevs,pseudo,xis,its=resDMDpseudo(U,A,zs,evals,evecs,filebase,verbose,load=load)
     stop=timeit.default_timer()
-    if verbose:
-        printmem(locals())
+    
     print('runtime:',stop-start)
