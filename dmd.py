@@ -7,8 +7,11 @@ from scipy.linalg import svd, eig, lu_factor, lu_solve,eigh
 from scipy.interpolate import interp1d
 from scipy.optimize import root_scalar
 from sklearn.utils.extmath import randomized_svd
-import argparse
 from memory_profiler import profile
+import argparse
+import dask.array as da
+from dask.distributed import Client, LocalCluster
+
 
 @profile
 def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
@@ -17,7 +20,8 @@ def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
         if rank is None:
             u,s,v=svd(X,full_matrices=False,check_finite=False)
         else:
-            u,s,v=randomized_svd(X, n_components=rank, n_oversamples=rank, random_state=0)
+            # u,s,v=randomized_svd(X, n_components=rank, n_oversamples=rank, random_state=0)
+            u,s,v=da.linalg.svd_compressed(X, rank, n_oversamples=rank, compute=True)
 
         stop=timeit.default_timer()
         if verbose:
@@ -201,9 +205,15 @@ if __name__ == "__main__":
     parser.add_argument("--savepca", type=int, required=False, dest='savepca', default=0, help='Save dense PCA data.')
     parser.add_argument("--runpseudo", type=int, required=False, dest='runpseudo', default=0, help='Run the pseudospectrum calculation.')
     parser.add_argument("--load", type=int, required=False, dest='load', default=0, help='Load data from previous runs.')
+    parser.add_argument("--cpus", type=int, required=False, dest='cpus', default=8, help='Number of tasks for dask.')
+    parser.add_argument("--mem", type=str, required=False, dest='mem', default='20GB', help='Memory limit for dask.')
     args = parser.parse_args()
 
     print(*sys.argv,flush=True)
+    # Create a LocalCluster with a memory limit of 4GB per worker
+    cluster = LocalCluster(n_workers=args.cpus, memory_limit=args.mem)
+    client = Client(cluster)
+
     filebase0 = args.filebase
     filesuffix = args.filesuffix
     verbose = args.verbose
@@ -265,7 +275,7 @@ if __name__ == "__main__":
     ls=np.array([(i+1)*N-i*(i-1)//2-1-2*i for i in range(N)],dtype=int)
 
     Nt=thetas[0].shape[0]
-    X=np.zeros((num_traj,M*N+2*D,Nt))
+    X=da.zeros((num_traj,M*N+2*D,Nt))
 
     for n in range(num_traj):
         theta=thetas[n]
@@ -286,8 +296,10 @@ if __name__ == "__main__":
             X[n][k]=theta[:,i]+theta[:,j]
             k=k+1
 
-    X=np.concatenate(X,axis=1)
-    X=np.concatenate([np.cos(X),np.sin(X)],axis=0).T
+    X=da.concatenate(X,axis=1)
+    X=da.concatenate([np.cos(X),np.sin(X)],axis=0).T
+    da.to_npy_stack(filebase0+'X',X)
+
     Xinds=np.setdiff1d(np.arange(np.sum(lengths)),np.cumsum(lengths)-1)
     Yinds=np.setdiff1d(np.arange(np.sum(lengths)),np.concatenate([[0],np.cumsum(lengths)[:-1]]))
     if verbose:
