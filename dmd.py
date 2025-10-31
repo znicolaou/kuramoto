@@ -287,7 +287,7 @@ if __name__ == "__main__":
         ls=np.array([(i+1)*N-i*(i-1)//2-1-2*i for i in range(N)],dtype=int)
 
         Nt=thetas[0].shape[0]
-        X=da.zeros((num_traj,M*N+2*D,Nt))
+        X=np.zeros((num_traj,M*N+2*D,Nt))
 
         for n in range(num_traj):
             theta=thetas[n]
@@ -308,8 +308,13 @@ if __name__ == "__main__":
                 X[n][k]=theta[:,i]+theta[:,j]
                 k=k+1
 
-        X=da.concatenate(X,axis=1)
-        X=da.concatenate([np.cos(X),np.sin(X)],axis=0).T
+        X=np.concatenate(X,axis=1)
+        X=np.concatenate([np.cos(X),np.sin(X)],axis=0).T
+        if not os.path.exists(filebase+'X'):
+            os.mkdir(filebase+'X')
+        da.to_npy_stack(filebase+'X',da.from_array(X))
+        del X
+        X=da.from_npy_stack(filebase+'X')
     
 
     Xinds=np.setdiff1d(np.arange(np.sum(lengths)),np.cumsum(lengths)-1)
@@ -319,9 +324,6 @@ if __name__ == "__main__":
 
     filebase=filebase0+filesuffix
 
-    if not os.path.exists(filebase+'X'):
-        os.mkdir(filebase+'X')
-    da.to_npy_stack(filebase+'X',X)
     if not os.path.exists(filebase+'n0s.npy'):
         np.save(filebase+'n0s.npy',np.array(lengths))
 
