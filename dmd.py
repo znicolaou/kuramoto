@@ -64,7 +64,7 @@ def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
         else:
             ranks=np.arange(1,rank)
         for r in ranks:
-            errs=errs+[np.linalg.norm(X-u[:,:r].dot(s[:r,np.newaxis]*v[:r]))/np.linalg.norm(X)]
+            errs=errs+[(da.linalg.norm(X[Xinds]-u[:,:r].dot(s[:r,np.newaxis]*v[:r]))/da.linalg.norm(X[Xinds])).compute()]
         errs=np.array([ranks,errs])
 
         np.save(filebase+'s.npy',s)
