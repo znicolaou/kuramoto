@@ -20,9 +20,9 @@ def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
         if rank is None:
             u,s,v=svd(X,full_matrices=False,check_finite=False)
         else:
-            # u,s,v=randomized_svd(X, n_components=rank, n_oversamples=rank, random_state=0)
-            u,s,v=da.linalg.svd_compressed(X, rank, n_oversamples=rank, compute=False)
-            s=s.compute()
+            u,s,v=randomized_svd(X, n_components=rank, n_oversamples=rank, random_state=0)
+            # u,s,v=da.linalg.svd_compressed(X, rank, n_oversamples=rank, compute=False)
+            # s=s.compute()
 
         stop=timeit.default_timer()
         if verbose:
@@ -52,15 +52,15 @@ def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
         # v=v[order]
 
     if save:
-        if not os.path.exists(filebase+'u'):
-            os.mkdir(filebase+'u')
-        da.to_npy_stack(filebase+'u',u)
-        if not os.path.exists(filebase+'v'):
-            os.mkdir(filebase+'v')
-        da.to_npy_stack(filebase+'v',v)
+        # if not os.path.exists(filebase+'u'):
+        #     os.mkdir(filebase+'u')
+        # da.to_npy_stack(filebase+'u',u)
+        # if not os.path.exists(filebase+'v'):
+        #     os.mkdir(filebase+'v')
+        # da.to_npy_stack(filebase+'v',v)
         # np.save(filebase+'X.npy',X)
-        # np.save(filebase+'u.npy',u)
-        # np.save(filebase+'v.npy',v)
+        np.save(filebase+'u.npy',u)
+        np.save(filebase+'v.npy',v)
     
     print('numerical rank:', rank,flush=True)
     if not load or not os.path.exists(filebase+'errs.npy'):
@@ -246,15 +246,16 @@ if __name__ == "__main__":
     thetas=[]
     lengths=[]
     n=0
+    filebase=filebase0+filesuffix
 
     if load:
-        X=da.from_npy_stack(filebase0+filesuffix+'X')
+        X=da.from_npy_stack(filebase+'X')
 
     else:
         read_traj=True
         while read_traj:
-            filebase='%s%i'%(filebase0,n)
-            file=open(filebase+'.out')
+            filebase1='%s%i'%(filebase0,n)
+            file=open(filebase1+'.out')
             lines=file.readlines()
             N,K,t1,dt,c,seed0=np.array(lines[0].split(),dtype=np.float64)
             N=int(N)
@@ -264,13 +265,11 @@ if __name__ == "__main__":
                 print(lines[-1])
             file.close()
 
-            omega=np.fromfile(filebase+'frequencies.dat',dtype=np.float64)
+            omega=np.fromfile(filebase1+'frequencies.dat',dtype=np.float64)
             N=len(omega)
-            theta=np.fromfile(filebase+'thetas.dat',dtype=np.float64).reshape((-1,N))
-            orders=np.fromfile(filebase+'order.dat',dtype=np.float64)
-            lastind=len(theta)
-            lengths=lengths+[lastind]
-            theta=theta[:lastind]
+            theta=np.fromfile(filebase1+'thetas.dat',dtype=np.float64).reshape((-1,N))
+            orders=np.fromfile(filebase1+'order.dat',dtype=np.float64)
+            lengths=lengths+[len(theta)]
 
             theta=theta-np.mean(omega)*dt*np.arange(theta.shape[0])[:,np.newaxis]
             thetas=thetas+[theta]
@@ -322,8 +321,6 @@ if __name__ == "__main__":
     if verbose:
         print('shape:', X[Xinds].shape, flush=True)
 
-    filebase=filebase0+filesuffix
-
     if not os.path.exists(filebase+'n0s.npy'):
         np.save(filebase+'n0s.npy',np.array(lengths))
 
@@ -338,11 +335,11 @@ if __name__ == "__main__":
         print('rank:',r,flush=True)
         if(r==errs[0][-1]):
             print('Warning: numerical precision may be limiting achievable pcatol')
-    U=u[:,:r].copy()
+    U=da.from_array(u[:,:r].copy())
     del u
-    V=v[:r,:].copy()
+    V=da.from_array(v[:r,:].copy())
     del v
-    S=s[:r].copy()
+    S=da.from_array(s[:r].copy())
     del s
     evals,evecs,res,phis,bs,A=resDMD(U,V,S,X[Xinds],X[Yinds],filebase,verbose,load=load)
 
