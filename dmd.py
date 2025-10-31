@@ -22,7 +22,7 @@ def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
         else:
             # u,s,v=randomized_svd(X, n_components=rank, n_oversamples=rank, random_state=0)
             u,s,v=da.linalg.svd_compressed(X, rank, n_oversamples=rank, compute=False)
-            # s=s.compute()
+            s=s.compute()
 
         stop=timeit.default_timer()
         if verbose:
@@ -46,21 +46,14 @@ def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
             rank=np.where(s<s.max() * max(X.shape[0],X.shape[1]) * np.finfo(X.dtype).eps)[0][0]
         except:
             pass
-        # order=np.flip(np.argsort(s))
-        # s=s[order]
-        # u=u[:,order]
-        # v=v[order]
 
     if save:
-        # if not os.path.exists(filebase+'u'):
-        #     os.mkdir(filebase+'u')
-        # da.to_npy_stack(filebase+'u',u)
-        # if not os.path.exists(filebase+'v'):
-        #     os.mkdir(filebase+'v')
-        # da.to_npy_stack(filebase+'v',v)
-        # np.save(filebase+'X.npy',X)
-        np.save(filebase+'u.npy',u)
-        np.save(filebase+'v.npy',v)
+        if not os.path.exists(filebase+'u'):
+            os.mkdir(filebase+'u')
+        da.to_npy_stack(filebase+'u',u)
+        if not os.path.exists(filebase+'v'):
+            os.mkdir(filebase+'v')
+        da.to_npy_stack(filebase+'v',v)
     
     print('numerical rank:', rank,flush=True)
     if not load or not os.path.exists(filebase+'errs.npy'):
