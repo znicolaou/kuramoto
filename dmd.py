@@ -21,7 +21,7 @@ def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
             u,s,v=svd(X,full_matrices=False,check_finite=False)
         else:
             # u,s,v=randomized_svd(X, n_components=rank, n_oversamples=rank, random_state=0)
-            u,s,v=da.linalg.svd_compressed(X, rank, n_oversamples=rank, compute=True)
+            u,s,v=da.linalg.svd_compressed(X, rank, n_oversamples=rank, compute=False)
 
         stop=timeit.default_timer()
         if verbose:
@@ -45,15 +45,21 @@ def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
             rank=np.where(s<s.max() * max(X.shape[0],X.shape[1]) * np.finfo(X.dtype).eps)[0][0]
         except:
             pass
-        order=np.flip(np.argsort(s))
-        s=s[order]
-        u=u[:,order]
-        v=v[order]
+        # order=np.flip(np.argsort(s))
+        # s=s[order]
+        # u=u[:,order]
+        # v=v[order]
 
     if save:
-        np.save(filebase+'X.npy',X)
-        np.save(filebase+'u.npy',u)
-        np.save(filebase+'v.npy',v)
+        if not os.path.exists(filebase+'u'):
+            os.mkdir(filebase+'u')
+        da.to_npy_stack(filebase+'u',u)
+        if not os.path.exists(filebase+'v'):
+            os.mkdir(filebase+'v')
+        da.to_npy_stack(filebase+'v',v)
+        # np.save(filebase+'X.npy',X)
+        # np.save(filebase+'u.npy',u)
+        # np.save(filebase+'v.npy',v)
     
     print('numerical rank:', rank,flush=True)
     if not load or not os.path.exists(filebase+'errs.npy'):
@@ -298,7 +304,7 @@ if __name__ == "__main__":
 
     X=da.concatenate(X,axis=1)
     X=da.concatenate([np.cos(X),np.sin(X)],axis=0).T
-    da.to_npy_stack(filebase0+'X',X)
+    
 
     Xinds=np.setdiff1d(np.arange(np.sum(lengths)),np.cumsum(lengths)-1)
     Yinds=np.setdiff1d(np.arange(np.sum(lengths)),np.concatenate([[0],np.cumsum(lengths)[:-1]]))
@@ -306,6 +312,10 @@ if __name__ == "__main__":
         print('shape:', X[Xinds].shape, flush=True)
 
     filebase=filebase0+filesuffix
+
+    if not os.path.exists(filebase+'X'):
+        os.mkdir(filebase+'X')
+    da.to_npy_stack(filebase+'X',X)
     np.save(filebase+'n0s.npy',np.array(lengths))
 
     s,u,v,errs=PCA(X[Xinds],filebase,verbose,rank=rank,save=save,load=load)
