@@ -11,7 +11,8 @@ from memory_profiler import profile
 import argparse
 import dask.array as da
 from dask.distributed import Client, LocalCluster
-
+import warnings
+warnings.filterwarnings('ignore', category=UserWarning)
 
 @profile
 def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
@@ -85,19 +86,41 @@ def resDMD(U,V,S,X,Y,filebase,verbose=False,load=False,save=True):
     if not load or not os.path.exists(filebase+'res.npy'):
         start=timeit.default_timer()
         A=Y.dot(np.conjugate(V).T*1/S).compute()
+        stop=timeit.default_timer()
+        if verbose:
+            print('A runtime:',stop-start,flush=True)
+        start=timeit.default_timer()
         Ktilde=np.conjugate(U.T).dot(A).compute()
+        stop=timeit.default_timer()
+        if verbose:
+            print('Ktilde runtime:',stop-start,flush=True)
+        start=timeit.default_timer()
         evals,levecs,revecs=eig(Ktilde,left=True,right=True)
         stop=timeit.default_timer()
         if verbose:
             print('eig runtime:',stop-start,flush=True)
-
         start=timeit.default_timer()
         res=np.linalg.norm(A.dot(revecs)-evals[np.newaxis,:]*U.dot(revecs).compute(),axis=0)
+        stop=timeit.default_timer()
+        if verbose:
+            print('res runtime:',stop-start,flush=True)
+        start=timeit.default_timer()
         phis=(np.conjugate(V).T*1/S).dot(revecs).compute()
+        stop=timeit.default_timer()
+        if verbose:
+            print('phis runtime:',stop-start,flush=True)
+        start=timeit.default_timer()
         diag=np.sum(np.conjugate(levecs)*revecs,axis=0)
         revecsinv=1/diag[:,np.newaxis]*(np.conjugate(levecs).T)
-        #phitildes=revecsinv.dot(V*S[:,np.newaxis]).compute()
+        stop=timeit.default_timer()
+        if verbose:
+            print('revecsinv runtime:',stop-start,flush=True)
+        start=timeit.default_timer()
         phitildes=V.T.dot(S*revecsinv.T).T.compute()
+        stop=timeit.default_timer()
+        if verbose:
+            print('phitildes runtime:',stop-start,flush=True)
+        start=timeit.default_timer()
         bs=(X.dot(phis)/np.linalg.norm(Y.dot(phis),axis=0)).compute()
         stop=timeit.default_timer()
         if verbose:
@@ -257,8 +280,6 @@ if __name__ == "__main__":
         
             omega=da.from_array(np.memmap(filebase1+'frequencies.dat',dtype=np.float64,mode='r+',shape=(N)),name=False)
             theta=da.from_array(np.memmap(filebase1+'thetas.dat',dtype=np.float64,mode='r+',shape=shape),name=False)
-            #omega=da.from_array(np.fromfile(filebase1+'frequencies.dat',dtype=np.float64).reshape((N)),name=False)
-            #theta=da.from_array(np.fromfile(filebase1+'thetas.dat',dtype=np.float64).reshape(shape),name=False)
         
             theta=theta-np.mean(omega)*dt*np.arange(theta.shape[0])[:,np.newaxis]
             thetas=thetas+[theta]
@@ -328,7 +349,7 @@ if __name__ == "__main__":
             murs=minr+(maxr-minr)*np.arange(nr)/(nr-1)
         else:
             murs=np.array([0])
-        muis=mini+(maxi-mini)*np.arange(ni)/(dni-1)
+        muis=mini+(maxi-mini)*np.arange(ni)/(ni-1)
 
         zs=np.exp((murs[:,np.newaxis]+1j*muis[np.newaxis,:]).ravel()*dt)
         zs_prevs,pseudo,xis,its=resDMDpseudo(u[:,:r],A,zs,evals,evecs,filebase,verbose,load=load)
