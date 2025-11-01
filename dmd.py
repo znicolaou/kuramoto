@@ -90,13 +90,13 @@ def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
 def resDMD(U,V,S,X,Y,filebase,verbose=False,load=False,save=True):
     if not load or not os.path.exists(filebase+'res.npy'):
         start=timeit.default_timer()
-        A=Y.dot(np.conjugate(V).T*1/S)
+        A=Y.dot(np.conjugate(V).T*1/S).compute()
         if save:
             np.save(filebase+'A.npy',A)
-            np.save(filebase+'U.npy',U)
-            np.save(filebase+'V.npy',V)
+            # np.save(filebase+'U.npy',U)
+            # np.save(filebase+'V.npy',V)
 
-        Ktilde=np.conjugate(U.T).dot(A)
+        Ktilde=np.conjugate(U.T).dot(A).compute()
 
         evals,levecs,revecs=eig(Ktilde,left=True,right=True)
         stop=timeit.default_timer()
@@ -104,21 +104,36 @@ def resDMD(U,V,S,X,Y,filebase,verbose=False,load=False,save=True):
             print('eig runtime:',stop-start,flush=True)
 
         start=timeit.default_timer()
-        res=np.linalg.norm(A.dot(revecs)-evals[np.newaxis,:]*U.dot(revecs),axis=0)
+        res=np.linalg.norm(A.dot(revecs)-evals[np.newaxis,:]*U.dot(revecs).compute(),axis=0)
         stop=timeit.default_timer()
         if verbose:
             print('residue runtime:',stop-start,flush=True)
-        #This is usually most memory expensive...
-        #let's try to save some memory by copying a deleting s,u,v
         start=timeit.default_timer()
-        phis=(np.conjugate(V).T*1/S).dot(revecs)
-        diag=np.sum(np.conjugate(levecs)*revecs,axis=0)
-        revecsinv=1/diag[:,np.newaxis]*(np.conjugate(levecs).T)
-        phitildes=revecsinv.dot(V*S[:,np.newaxis])
-        bs=X.dot(phis)/np.linalg.norm(Y.dot(phis),axis=0)
+        phis=(np.conjugate(V).T*1/S).dot(revecs).compute()
         stop=timeit.default_timer()
         if verbose:
-            print('amplitude runtime:',stop-start,flush=True)
+            print('phis runtime:',stop-start,flush=True)
+
+        diag=np.sum(np.conjugate(levecs)*revecs,axis=0)
+        stop=timeit.default_timer()
+        if verbose:
+            print('phis runtime:',stop-start,flush=True)
+
+        revecsinv=1/diag[:,np.newaxis]*(np.conjugate(levecs).T)
+        stop=timeit.default_timer()
+        if verbose:
+            print('revecsinv runtime:',stop-start,flush=True)
+
+        phitildes=revecsinv.dot(V*S[:,np.newaxis]).compute()
+        stop=timeit.default_timer()
+        if verbose:
+            print('phitildes runtime:',stop-start,flush=True)
+
+        bs=(X.dot(phis)/np.linalg.norm(Y.dot(phis),axis=0)).compute()
+        stop=timeit.default_timer()
+        if verbose:
+            print('bs runtime:',stop-start,flush=True)
+            
         if save:
             np.save(filebase+'res.npy',res)
             np.save(filebase+'evals.npy',evals)
@@ -332,24 +347,18 @@ if __name__ == "__main__":
         print('rank:',r,flush=True)
         if(r==errs[0][-1]):
             print('Warning: numerical precision may be limiting achievable pcatol')
-    U=da.from_array(u[:,:r].copy())
-    del u
-    V=da.from_array(v[:r,:].copy())
-    del v
-    S=da.from_array(s[:r].copy())
-    del s
-    evals,evecs,res,phis,bs,A=resDMD(U,V,S,X[Xinds],X[Yinds],filebase,verbose,load=load)
+    evals,evecs,res,phis,bs,A=resDMD(u[:,:r],v[:r],s[:r],X[Xinds],X[Yinds],filebase,verbose,load=load)
 
     if nr>1:
         murs=minr+(maxr-minr)*np.arange(nr)/(nr-1)
     else:
         murs=np.array([0])
-    muis=mini+(maxi-mini)*np.arange(ni)/(ni-1)
+    muis=mini+(maxi-mini)*np.arange(ni)/(dni-1)
 
     zs=np.exp((murs[:,np.newaxis]+1j*muis[np.newaxis,:]).ravel()*dt)
 
     if runpseudo:
-        zs_prevs,pseudo,xis,its=resDMDpseudo(U,A,zs,evals,evecs,filebase,verbose,load=load)
+        zs_prevs,pseudo,xis,its=resDMDpseudo(u[:,:r],A,zs,evals,evecs,filebase,verbose,load=load)
     stop=timeit.default_timer()
     
     print('runtime:',stop-start)
