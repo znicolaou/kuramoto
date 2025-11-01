@@ -25,9 +25,11 @@ def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
             s=sda.compute()
             #since we'll use u and v many times, compute and stope them here
             if not os.path.exists(filebase+'u'):
-                da.to_npy_stack(filebase+'u',u)
+                os.mkdir(filebase+'u')
+            da.to_npy_stack(filebase+'u',u)
             if not os.path.exists(filebase+'v'):
-                da.to_npy_stack(filebase+'v',v)
+                os.mkdir(filebase+'v')    
+            da.to_npy_stack(filebase+'v',v)
             u=da.from_npy_stack(filebase+'u')
             v=da.from_npy_stack(filebase+'v')
 
@@ -54,14 +56,6 @@ def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
         except:
             pass
 
-    if save:
-        if not os.path.exists(filebase+'u'):
-            os.mkdir(filebase+'u')
-        da.to_npy_stack(filebase+'u',u)
-        if not os.path.exists(filebase+'v'):
-            os.mkdir(filebase+'v')
-        da.to_npy_stack(filebase+'v',v)
-    
     print('numerical rank:', rank,flush=True)
     if not load or not os.path.exists(filebase+'errs.npy'):
         start=timeit.default_timer()
@@ -73,7 +67,7 @@ def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
         for r in ranks:
             Xtilde=(u[:,:r]*s[:r]).dot(v[:r])
             err=da.linalg.norm(X-Xtilde)/da.linalg.norm(X)
-            errs=errs+[err]
+            errs=errs+[err.compute()]
         errs=np.array([ranks,errs])
 
         np.save(filebase+'s.npy',s)
@@ -124,7 +118,8 @@ def resDMD(U,V,S,X,Y,filebase,verbose=False,load=False,save=True):
         if verbose:
             print('revecsinv runtime:',stop-start,flush=True)
 
-        phitildes=revecsinv.dot(V*S[:,np.newaxis]).compute()
+        #phitildes=revecsinv.dot(V*S[:,np.newaxis]).compute()
+        phitildes=V.T.dot(S*revecsinv.T).T.compute()
         stop=timeit.default_timer()
         if verbose:
             print('phitildes runtime:',stop-start,flush=True)
@@ -286,6 +281,8 @@ if __name__ == "__main__":
         
             omega=da.from_array(np.memmap(filebase1+'frequencies.dat',dtype=np.float64,mode='r+',shape=(N)),name=False)
             theta=da.from_array(np.memmap(filebase1+'thetas.dat',dtype=np.float64,mode='r+',shape=shape),name=False)
+            #omega=da.from_array(np.fromfile(filebase1+'frequencies.dat',dtype=np.float64).reshape((N)),name=False)
+            #theta=da.from_array(np.fromfile(filebase1+'thetas.dat',dtype=np.float64).reshape(shape),name=False)
         
             theta=theta-np.mean(omega)*dt*np.arange(theta.shape[0])[:,np.newaxis]
             thetas=thetas+[theta]
