@@ -104,8 +104,16 @@ def resDMD(U,V,S,X,Y,filebase,verbose=False,load=False,save=True):
         stop=timeit.default_timer()
         if verbose:
             print('res runtime:',stop-start,flush=True)
+
         start=timeit.default_timer()
-        phis=(np.conjugate(V).T*1/S).dot(revecs).compute()
+        phis=(np.conjugate(V).T*1/S).dot(revecs)
+        bs=(X.dot(phis)/np.linalg.norm(Y.dot(phis),axis=0)).compute()
+        stop=timeit.default_timer()
+        if verbose:
+            print('amplitude runtime:',stop-start,flush=True)
+
+        start=timeit.default_timer()
+        phis=phis.compute()
         stop=timeit.default_timer()
         if verbose:
             print('phis runtime:',stop-start,flush=True)
@@ -120,11 +128,7 @@ def resDMD(U,V,S,X,Y,filebase,verbose=False,load=False,save=True):
         stop=timeit.default_timer()
         if verbose:
             print('phitildes runtime:',stop-start,flush=True)
-        start=timeit.default_timer()
-        bs=(X.dot(phis)/np.linalg.norm(Y.dot(phis),axis=0)).compute()
-        stop=timeit.default_timer()
-        if verbose:
-            print('amplitude runtime:',stop-start,flush=True)
+        
             
         if save:
             np.save(filebase+'A.npy',A)
