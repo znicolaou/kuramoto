@@ -85,13 +85,7 @@ def resDMD(U,V,S,X,Y,filebase,verbose=False,load=False,save=True):
     if not load or not os.path.exists(filebase+'res.npy'):
         start=timeit.default_timer()
         A=Y.dot(np.conjugate(V).T*1/S).compute()
-        if save:
-            np.save(filebase+'A.npy',A)
-            # np.save(filebase+'U.npy',U)
-            # np.save(filebase+'V.npy',V)
-
         Ktilde=np.conjugate(U.T).dot(A).compute()
-
         evals,levecs,revecs=eig(Ktilde,left=True,right=True)
         stop=timeit.default_timer()
         if verbose:
@@ -99,37 +93,18 @@ def resDMD(U,V,S,X,Y,filebase,verbose=False,load=False,save=True):
 
         start=timeit.default_timer()
         res=np.linalg.norm(A.dot(revecs)-evals[np.newaxis,:]*U.dot(revecs).compute(),axis=0)
-        stop=timeit.default_timer()
-        if verbose:
-            print('residue runtime:',stop-start,flush=True)
-        start=timeit.default_timer()
         phis=(np.conjugate(V).T*1/S).dot(revecs).compute()
-        stop=timeit.default_timer()
-        if verbose:
-            print('phis runtime:',stop-start,flush=True)
-
         diag=np.sum(np.conjugate(levecs)*revecs,axis=0)
-        stop=timeit.default_timer()
-        if verbose:
-            print('phis runtime:',stop-start,flush=True)
-
         revecsinv=1/diag[:,np.newaxis]*(np.conjugate(levecs).T)
-        stop=timeit.default_timer()
-        if verbose:
-            print('revecsinv runtime:',stop-start,flush=True)
-
         #phitildes=revecsinv.dot(V*S[:,np.newaxis]).compute()
         phitildes=V.T.dot(S*revecsinv.T).T.compute()
-        stop=timeit.default_timer()
-        if verbose:
-            print('phitildes runtime:',stop-start,flush=True)
-
         bs=(X.dot(phis)/np.linalg.norm(Y.dot(phis),axis=0)).compute()
         stop=timeit.default_timer()
         if verbose:
-            print('bs runtime:',stop-start,flush=True)
+            print('amplitude runtime:',stop-start,flush=True)
             
         if save:
+            np.save(filebase+'A.npy',A)
             np.save(filebase+'res.npy',res)
             np.save(filebase+'evals.npy',evals)
             np.save(filebase+'revecs.npy',revecs)
@@ -174,16 +149,17 @@ def resDMDpseudo(U,A,zs,evals,evecs,filebase,verbose,load=False,save=True):
             A2=(A-z*U)
             C2=np.conjugate(A2).T.dot(A2)
             lu,piv=lu_factor(C2)
-            residue=np.linalg.norm(A2.dot(xi))
+            residue=np.linalg.norm(A2.dot(xi)).compute()
 
             for m in range(100):
                 xi=lu_solve((lu,piv),xi)
                 xi=xi/np.linalg.norm(xi)
-                newres=np.linalg.norm(A2.dot(xi))
+                newres=np.linalg.norm(A2.dot(xi)).compute()
                 if np.linalg.norm((residue-newres)/residue)<1E-3:
                     residue=newres
                     break
                 residue=newres
+
             zs_prev=zs_prev+[z]
             pseudo=pseudo+[residue]
             xis=xis+[xi]
@@ -346,15 +322,15 @@ if __name__ == "__main__":
             print('Warning: numerical precision may be limiting achievable pcatol')
     evals,evecs,res,phis,bs,A=resDMD(u[:,:r],v[:r],s[:r],X[Xinds],X[Yinds],filebase,verbose,load=load)
 
-    if nr>1:
-        murs=minr+(maxr-minr)*np.arange(nr)/(nr-1)
-    else:
-        murs=np.array([0])
-    muis=mini+(maxi-mini)*np.arange(ni)/(dni-1)
-
-    zs=np.exp((murs[:,np.newaxis]+1j*muis[np.newaxis,:]).ravel()*dt)
 
     if runpseudo:
+        if nr>1:
+            murs=minr+(maxr-minr)*np.arange(nr)/(nr-1)
+        else:
+            murs=np.array([0])
+        muis=mini+(maxi-mini)*np.arange(ni)/(dni-1)
+
+        zs=np.exp((murs[:,np.newaxis]+1j*muis[np.newaxis,:]).ravel()*dt)
         zs_prevs,pseudo,xis,its=resDMDpseudo(u[:,:r],A,zs,evals,evecs,filebase,verbose,load=load)
     stop=timeit.default_timer()
     
