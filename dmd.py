@@ -105,8 +105,9 @@ def resDMD(U,V,S,X,Y,filebase,verbose=False,load=False,save=True):
         if verbose:
             print('res runtime:',stop-start,flush=True)
 
-        start=timeit.default_timer()
         phis=(np.conjugate(V).T*1/S).dot(revecs)
+
+        start=timeit.default_timer()
         bs=(X.dot(phis)/np.linalg.norm(Y.dot(phis),axis=0)).compute()
         stop=timeit.default_timer()
         if verbose:
@@ -203,60 +204,8 @@ def resDMDpseudo(U,A,zs,evals,evecs,filebase,verbose,load=False,save=True):
 
     return zs_prev,pseudo,xis,its
 
-if __name__ == "__main__":
-
-    #Command line arguments
-    parser = argparse.ArgumentParser(description='Numerical integration of networks of phase oscillators.')
-    parser.add_argument("--filebase", type=str, required=True, dest='filebase', help='Base string for file output.')
-    parser.add_argument("--filesuffix", type=str, required=False, dest='filesuffix', default='', help='Suffix string for file output.')
-    parser.add_argument("--verbose", type=int, required=False, dest='verbose', default=1, help='Verbose printing.')
-    parser.add_argument("--pcatol", type=float, required=False, dest='pcatol', default=1E-7, help='Reconstruction error cutoff for pca.')
-    parser.add_argument("--resmax", type=float, required=False, dest='resmax', default=None, help='Maximum residue.')
-    parser.add_argument("--minr", type=float, required=False, dest='minr', default=-3, help='Pseudospectra real scale.')
-    parser.add_argument("--maxr", type=float, required=False, dest='maxr', default=1, help='Pseudospectra real scale.')
-    parser.add_argument("--mini", type=float, required=False, dest='mini', default=-15, help='Pseudospectra imaginary scale.')
-    parser.add_argument("--maxi", type=float, required=False, dest='maxi', default=15, help='Pseudospectra imaginary scale.')
-    parser.add_argument("--nr", type=int, required=False, dest='nr', default=26, help='Number of real pseudospectra points.')
-    parser.add_argument("--ni", type=int, required=False, dest='ni', default=26, help='Number of imaginary pseudospectra points.')
-    parser.add_argument("--num_traj", type=int, required=False, dest='num_traj', default=0, help='Number of trajectories.')
-    parser.add_argument("--order", type=int, required=False, dest='order', default=1, help='Number of trajectories.')
-    parser.add_argument("--seed", type=int, required=False, dest='seed', default=1, help='Random seed for library.')
-    parser.add_argument("--M", type=int, required=False, dest='M', default=1, help='Number of angle multiples to include in library.')
-    parser.add_argument("--D", type=int, required=False, dest='D', default=0, help='Number of angle pairs to include in library.')
-    parser.add_argument("--rank", type=int, required=False, dest='rank', default=None, help='Ritz rank for svd.')
-    parser.add_argument("--savepca", type=int, required=False, dest='savepca', default=0, help='Save dense PCA data.')
-    parser.add_argument("--runpseudo", type=int, required=False, dest='runpseudo', default=0, help='Run the pseudospectrum calculation.')
-    parser.add_argument("--load", type=int, required=False, dest='load', default=0, help='Load data from previous runs.')
-    parser.add_argument("--cpus", type=int, required=False, dest='cpus', default=8, help='Number of tasks for dask.')
-    parser.add_argument("--mem", type=str, required=False, dest='mem', default='20GB', help='Memory limit for dask.')
-    args = parser.parse_args()
-
-    print(*sys.argv,flush=True)
-    # Create a LocalCluster with a memory limit of 4GB per worker
-    cluster = LocalCluster(n_workers=1, processes=False, memory_limit=args.mem)
-    client = Client(cluster)
-
-    filebase0 = args.filebase
-    filesuffix = args.filesuffix
-    verbose = args.verbose
-    pcatol = args.pcatol
-    resmax = args.resmax
-    minr = args.minr
-    maxr = args.maxr
-    mini = args.mini
-    maxi = args.maxi
-    order = args.order
-    seed = args.seed
-    D = args.D
-    M = args.M
-    nr = args.nr
-    ni = args.ni
-    num_traj = args.num_traj
-    rank = args.rank
-    save = args.savepca
-    runpseudo = args.runpseudo
-    load = args.load
-
+@profile 
+def load_data(filebase0,filesuffix,verbose=False,num_traj=0,D=0,M=1,load=False):
     start=timeit.default_timer()
     thetas=[]
     lengths=[]
@@ -325,8 +274,69 @@ if __name__ == "__main__":
         da.to_npy_stack(filebase+'X',X)
         X=da.from_npy_stack(filebase+'X')
 
-        if not os.path.exists(filebase+'n0s.npy'):
-            np.save(filebase+'n0s.npy',np.array(lengths))
+        if not os.path.exists(filebase+'lengths.npy'):
+            np.save(filebase+'lengths.npy',np.array(lengths))
+    stop=timeit.default_timer()
+    if verbose:
+        print('data load runtime:',stop-start,flush=True)
+    return X,lengths,filebase,dt
+
+if __name__ == "__main__":
+
+    #Command line arguments
+    parser = argparse.ArgumentParser(description='Numerical integration of networks of phase oscillators.')
+    parser.add_argument("--filebase", type=str, required=True, dest='filebase', help='Base string for file output.')
+    parser.add_argument("--filesuffix", type=str, required=False, dest='filesuffix', default='', help='Suffix string for file output.')
+    parser.add_argument("--verbose", type=int, required=False, dest='verbose', default=1, help='Verbose printing.')
+    parser.add_argument("--pcatol", type=float, required=False, dest='pcatol', default=1E-7, help='Reconstruction error cutoff for pca.')
+    parser.add_argument("--resmax", type=float, required=False, dest='resmax', default=None, help='Maximum residue.')
+    parser.add_argument("--minr", type=float, required=False, dest='minr', default=-3, help='Pseudospectra real scale.')
+    parser.add_argument("--maxr", type=float, required=False, dest='maxr', default=1, help='Pseudospectra real scale.')
+    parser.add_argument("--mini", type=float, required=False, dest='mini', default=-15, help='Pseudospectra imaginary scale.')
+    parser.add_argument("--maxi", type=float, required=False, dest='maxi', default=15, help='Pseudospectra imaginary scale.')
+    parser.add_argument("--nr", type=int, required=False, dest='nr', default=26, help='Number of real pseudospectra points.')
+    parser.add_argument("--ni", type=int, required=False, dest='ni', default=26, help='Number of imaginary pseudospectra points.')
+    parser.add_argument("--num_traj", type=int, required=False, dest='num_traj', default=0, help='Number of trajectories.')
+    parser.add_argument("--order", type=int, required=False, dest='order', default=1, help='Number of trajectories.')
+    parser.add_argument("--seed", type=int, required=False, dest='seed', default=1, help='Random seed for library.')
+    parser.add_argument("--M", type=int, required=False, dest='M', default=1, help='Number of angle multiples to include in library.')
+    parser.add_argument("--D", type=int, required=False, dest='D', default=0, help='Number of angle pairs to include in library.')
+    parser.add_argument("--rank", type=int, required=False, dest='rank', default=None, help='Ritz rank for svd.')
+    parser.add_argument("--savepca", type=int, required=False, dest='savepca', default=0, help='Save dense PCA data.')
+    parser.add_argument("--runpseudo", type=int, required=False, dest='runpseudo', default=0, help='Run the pseudospectrum calculation.')
+    parser.add_argument("--load", type=int, required=False, dest='load', default=0, help='Load data from previous runs.')
+    parser.add_argument("--cpus", type=int, required=False, dest='cpus', default=8, help='Number of tasks for dask.')
+    parser.add_argument("--mem", type=str, required=False, dest='mem', default='20GB', help='Memory limit for dask.')
+    args = parser.parse_args()
+
+    print(*sys.argv,flush=True)
+    # Create a LocalCluster with a memory limit of 4GB per worker
+    cluster = LocalCluster(n_workers=1, processes=False, memory_limit=args.mem)
+    client = Client(cluster)
+
+    filebase0 = args.filebase
+    filesuffix = args.filesuffix
+    verbose = args.verbose
+    pcatol = args.pcatol
+    resmax = args.resmax
+    minr = args.minr
+    maxr = args.maxr
+    mini = args.mini
+    maxi = args.maxi
+    order = args.order
+    seed = args.seed
+    D = args.D
+    M = args.M
+    nr = args.nr
+    ni = args.ni
+    num_traj = args.num_traj
+    rank = args.rank
+    save = args.savepca
+    runpseudo = args.runpseudo
+    load = args.load
+
+    start=timeit.default_timer()
+    X,lengths,filebase,dt=load_data(filebase0,filesuffix,verbose,num_traj,D,M,load)
     
 
     Xinds=np.setdiff1d(np.arange(np.sum(lengths)),np.cumsum(lengths)-1)
