@@ -308,7 +308,6 @@ if __name__ == "__main__":
     parser.add_argument("--runpseudo", type=int, required=False, dest='runpseudo', default=0, help='Run the pseudospectrum calculation.')
     parser.add_argument("--dense_amplitudes", type=int, required=False, dest='dense_amplitudes', default=0, help='Save dense amplitude data.')
     parser.add_argument("--load", type=int, required=False, dest='load', default=0, help='Load data from previous runs.')
-    parser.add_argument("--cpus", type=int, required=False, dest='cpus', default=8, help='Number of tasks for dask.')
     parser.add_argument("--mem", type=str, required=False, dest='mem', default='20GB', help='Memory limit for dask.')
     args = parser.parse_args()
 
