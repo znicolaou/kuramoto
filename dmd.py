@@ -362,7 +362,7 @@ if __name__ == "__main__":
         print('rank:',r,flush=True)
         if(r==errs[0][-1]):
             print('Warning: numerical precision may be limiting achievable pcatol')
-    evals,evecs,res,phis,bs,A=resDMD(u[:,:r],v[:r],s[:r],X[Xinds],X[Yinds],filebase,verbose,load=load)
+    evals,evecs,res,phis,bs,A=resDMD(u[:,:r],v[:r],s[:r],X,Yinds,binds,filebase,verbose,load=load)
 
 
     if runpseudo:
