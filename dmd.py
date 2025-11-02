@@ -82,10 +82,10 @@ def PCA(X,filebase,verbose=False,rank=None,load=False,save=False):
     return s,u,v,errs
 
 @profile
-def resDMD(U,V,S,X,Y,filebase,verbose=False,load=False,save=True):
+def resDMD(U,V,S,X,Yinds,binds,filebase,verbose=False,load=False,save=True,dense_amplitudes=False):
     if not load or not os.path.exists(filebase+'res.npy'):
         start=timeit.default_timer()
-        A=Y.dot(np.conjugate(V).T*1/S).compute()
+        A=X[Yinds].dot(np.conjugate(V).T*1/S).compute()
         stop=timeit.default_timer()
         if verbose:
             print('A runtime:',stop-start,flush=True)
@@ -99,19 +99,21 @@ def resDMD(U,V,S,X,Y,filebase,verbose=False,load=False,save=True):
         stop=timeit.default_timer()
         if verbose:
             print('eig runtime:',stop-start,flush=True)
+
+        phis=(np.conjugate(V).T*1/S).dot(revecs)
+
+        start=timeit.default_timer()
+        bs=(X[binds].dot(phis)/np.linalg.norm(X[Yinds[binds]].dot(phis),axis=0)).compute()
+
+        stop=timeit.default_timer()
+        if verbose:
+            print('amplitude runtime:',stop-start,flush=True)
+
         start=timeit.default_timer()
         res=np.linalg.norm(A.dot(revecs)-evals[np.newaxis,:]*U.dot(revecs).compute(),axis=0)
         stop=timeit.default_timer()
         if verbose:
             print('res runtime:',stop-start,flush=True)
-
-        phis=(np.conjugate(V).T*1/S).dot(revecs)
-
-        start=timeit.default_timer()
-        bs=(X.dot(phis)/np.linalg.norm(Y.dot(phis),axis=0)).compute()
-        stop=timeit.default_timer()
-        if verbose:
-            print('amplitude runtime:',stop-start,flush=True)
 
         start=timeit.default_timer()
         phis=phis.compute()
@@ -304,6 +306,7 @@ if __name__ == "__main__":
     parser.add_argument("--rank", type=int, required=False, dest='rank', default=None, help='Ritz rank for svd.')
     parser.add_argument("--savepca", type=int, required=False, dest='savepca', default=0, help='Save dense PCA data.')
     parser.add_argument("--runpseudo", type=int, required=False, dest='runpseudo', default=0, help='Run the pseudospectrum calculation.')
+    parser.add_argument("--dense_amplitudes", type=int, required=False, dest='dense_amplitudes', default=0, help='Save dense amplitude data.')
     parser.add_argument("--load", type=int, required=False, dest='load', default=0, help='Load data from previous runs.')
     parser.add_argument("--cpus", type=int, required=False, dest='cpus', default=8, help='Number of tasks for dask.')
     parser.add_argument("--mem", type=str, required=False, dest='mem', default='20GB', help='Memory limit for dask.')
@@ -341,6 +344,10 @@ if __name__ == "__main__":
 
     Xinds=np.setdiff1d(np.arange(np.sum(lengths)),np.cumsum(lengths)-1)
     Yinds=np.setdiff1d(np.arange(np.sum(lengths)),np.concatenate([[0],np.cumsum(lengths)[:-1]]))
+    if args.dense_amplitudes:
+        binds=Xinds
+    else:
+        binds=np.array([0]+list(np.cumsum(lengths)[:-1]))
     if verbose:
         print('shape:', X[Xinds].shape, flush=True)
 
