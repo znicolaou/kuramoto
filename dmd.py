@@ -103,7 +103,7 @@ def resDMD(U,V,S,X,Yinds,binds,filebase,verbose=False,load=False,save=True,dense
         phis=(np.conjugate(V).T*1/S).dot(revecs)
 
         start=timeit.default_timer()
-        bs=(X[binds].dot(phis)/np.linalg.norm(X[Yinds[binds]].dot(phis),axis=0)).compute()
+        bs=(X[binds].dot(phis)/np.linalg.norm(X[Yinds].dot(phis),axis=0)).compute()
 
         stop=timeit.default_timer()
         if verbose:
