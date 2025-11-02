@@ -233,8 +233,8 @@ def load_data(filebase0,filesuffix,verbose=False,num_traj=0,D=0,M=1,load=False):
                 print(lines[-1])
             file.close()
         
-            omega=da.from_array(np.memmap(filebase1+'frequencies.dat',dtype=np.float64,mode='r+',shape=(N)),name=False)
-            theta=da.from_array(np.memmap(filebase1+'thetas.dat',dtype=np.float64,mode='r+',shape=shape),name=False)
+            omega=da.from_array(np.memmap(filebase1+'frequencies.dat',dtype=np.float64,mode='r+',shape=(N)),name=False,chunks=4096)
+            theta=da.from_array(np.memmap(filebase1+'thetas.dat',dtype=np.float64,mode='r+',shape=shape),name=False,chunks=4096)
         
             theta=theta-np.mean(omega)*dt*np.arange(theta.shape[0])[:,np.newaxis]
             thetas=thetas+[theta]
@@ -274,7 +274,7 @@ def load_data(filebase0,filesuffix,verbose=False,num_traj=0,D=0,M=1,load=False):
         if not os.path.exists(filebase+'X'):
             os.mkdir(filebase+'X')
         da.to_npy_stack(filebase+'X',X)
-        X=da.from_npy_stack(filebase+'X')
+        X=da.rechunk(da.from_npy_stack(filebase+'X'))
 
         if not os.path.exists(filebase+'lengths.npy'):
             np.save(filebase+'lengths.npy',np.array(lengths))
