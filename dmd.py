@@ -35,7 +35,7 @@ def PCA(X,filebase,verbose=False,rank=None,load=False,save=False,chunks=4096):
             #since we'll use u and v many times, compute and stope them here
             if not os.path.exists(filebase+'u'):
                 os.mkdir(filebase+'u')
-            da.to_npy_stack(filebase+'u',u)
+            da.to_npy_stack(filebase+'u',da.rechunk(u,chunks=(chunks,chunks)))
             u=da.rechunk(da.from_npy_stack(filebase+'u'),chunks=(chunks,chunks))
             stop=timeit.default_timer()
             if verbose:
@@ -43,7 +43,7 @@ def PCA(X,filebase,verbose=False,rank=None,load=False,save=False,chunks=4096):
             start=timeit.default_timer()
             if not os.path.exists(filebase+'v'):
                 os.mkdir(filebase+'v')    
-            da.to_npy_stack(filebase+'v',v)
+            da.to_npy_stack(filebase+'v',da.rechunk(v,chunks=(chunks,chunks)))
             stop=timeit.default_timer()
             v=da.rechunk(da.from_npy_stack(filebase+'v'),chunks=(chunks,chunks))
             if verbose:
@@ -93,7 +93,7 @@ def PCA(X,filebase,verbose=False,rank=None,load=False,save=False,chunks=4096):
     return s,u,v,errs
 
 @profile
-def resDMD(U,V,S,X,Yinds,binds,filebase,verbose=False,load=False,save=True,dense_amplitudes=False):
+def resDMD(U,V,S,X,Yinds,binds,filebase,verbose=False,load=False,save=True,dense_amplitudes=False,chunks=4096):
     if not load or not os.path.exists(filebase+'res.npy'):
         start=timeit.default_timer()
         A=X[Yinds].dot(np.conjugate(V).T*1/S).compute()
@@ -157,7 +157,7 @@ def resDMD(U,V,S,X,Yinds,binds,filebase,verbose=False,load=False,save=True,dense
     else:
         res=np.load(filebase+'res.npy')
         evals=np.load(filebase+'evals.npy')
-        revecs=np.load(filebase+'evecs.npy')
+        revecs=np.load(filebase+'revecs.npy')
         phis=np.load(filebase+'phis.npy')
         bs=np.load(filebase+'bs.npy')
         A=np.load(filebase+'A.npy')
@@ -190,12 +190,12 @@ def resDMDpseudo(U,A,zs,evals,evecs,filebase,verbose,load=False,save=True):
             A2=(A-z*U)
             C2=np.conjugate(A2).T.dot(A2)
             lu,piv=lu_factor(C2)
-            residue=np.linalg.norm(A2.dot(xi)).compute()
+            residue=np.linalg.norm(A2.dot(xi))
 
             for m in range(100):
                 xi=lu_solve((lu,piv),xi)
                 xi=xi/np.linalg.norm(xi)
-                newres=np.linalg.norm(A2.dot(xi)).compute()
+                newres=np.linalg.norm(A2.dot(xi))
                 if np.linalg.norm((residue-newres)/residue)<1E-3:
                     residue=newres
                     break
@@ -225,9 +225,17 @@ def load_data(filebase0,filesuffix,verbose=False,num_traj=0,D=0,M=1,load=False, 
     n=0
     filebase=filebase0+filesuffix
 
-    if load:
+    if load and os.path.exists(filebase+'X'):
         X=da.from_npy_stack(filebase+'X')
-        lengths=np.load(filebase+'n0s.npy')
+        lengths=np.load(filebase+'lengths.npy')
+        n=0
+        filebase1='%s%i'%(filebase0,n)
+        file=open(filebase1+'.out')
+        lines=file.readlines()
+        N,K,t1,dt,c,seed0=np.array(lines[0].split(),dtype=np.float64)
+        file.close()
+        
+
     else:
         read_traj=True    
         while read_traj:
@@ -259,7 +267,7 @@ def load_data(filebase0,filesuffix,verbose=False,num_traj=0,D=0,M=1,load=False, 
         
         if not os.path.exists(filebase+'X0'):
             os.mkdir(filebase+'X0')
-        da.to_npy_stack(filebase+'X0',X0)
+        da.to_npy_stack(filebase+'X0',da.rechunk(X0,chunks=(chunks,chunks)))
         X0=da.rechunk(da.from_npy_stack(filebase+'X0'),chunks=(chunks,chunks))
         
         includes=np.random.choice(np.arange(N*(N-1)//2),size=D,replace=False)
@@ -284,7 +292,7 @@ def load_data(filebase0,filesuffix,verbose=False,num_traj=0,D=0,M=1,load=False, 
         
         if not os.path.exists(filebase+'X'):
             os.mkdir(filebase+'X')
-        da.to_npy_stack(filebase+'X',X)
+        da.to_npy_stack(filebase+'X',da.rechunk(X,chunks=(chunks,chunks)))
         X=da.rechunk(da.from_npy_stack(filebase+'X'),chunks=(chunks,chunks))
 
         if not os.path.exists(filebase+'lengths.npy'):
@@ -321,7 +329,7 @@ if __name__ == "__main__":
     parser.add_argument("--load", type=int, required=False, dest='load', default=0, help='Load data from previous runs.')
     parser.add_argument("--mem", type=str, required=False, dest='mem', default='20GB', help='Memory limit for dask.')
     parser.add_argument("--threads", type=int, required=False, dest='threads', default=2, help='Threads for dask.')
-    parser.add_argument("--chunks", type=int, required=False, dest=chunks, default=4096, help='Chunk size for dask.')
+    parser.add_argument("--chunks", type=int, required=False, dest='chunks', default=4096, help='Chunk size for dask.')
     args = parser.parse_args()
 
     print(*sys.argv,flush=True)
@@ -385,7 +393,7 @@ if __name__ == "__main__":
         muis=mini+(maxi-mini)*np.arange(ni)/(ni-1)
 
         zs=np.exp((murs[:,np.newaxis]+1j*muis[np.newaxis,:]).ravel()*dt)
-        zs_prevs,pseudo,xis,its=resDMDpseudo(u[:,:r],A,zs,evals,evecs,filebase,verbose,load=load)
+        zs_prevs,pseudo,xis,its=resDMDpseudo(u[:,:r].compute(),A,zs,evals,evecs,filebase,verbose,load=load)
     stop=timeit.default_timer()
     
     print('runtime:',stop-start)
