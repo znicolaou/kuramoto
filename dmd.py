@@ -7,92 +7,181 @@ from scipy.linalg import svd, eig, lu_factor, lu_solve,eigh
 from scipy.interpolate import interp1d
 from scipy.optimize import root_scalar
 from sklearn.utils.extmath import randomized_svd
-from memory_profiler import profile
 import argparse
 import dask.array as da
 from dask.distributed import Client, LocalCluster
 import warnings
 warnings.filterwarnings('ignore', category=UserWarning)
 
-@profile
-def PCA(X,filebase,verbose=False,rank=None,load=False,save=False,chunks=4096):
+def load_data(filebase0,filesuffix,verbose=False,num_traj=0,D=0,M=1,load=False, chunks=4096):
+    start=timeit.default_timer()
+    thetas=[]
+    lengths=[]
+    n=0
+    filebase=filebase0+filesuffix
+
+    if load and os.path.exists(filebase+'X'):
+        X=da.from_npy_stack(filebase+'X')
+        lengths=np.load(filebase+'lengths.npy')
+        n=0
+        filebase1='%s%i'%(filebase0,n)
+        file=open(filebase1+'.out')
+        lines=file.readlines()
+        N,K,t1,dt,c,seed0=np.array(lines[0].split(),dtype=np.float64)
+        file.close()
+        
+
+    else:
+        read_traj=True    
+        while read_traj:
+            filebase1='%s%i'%(filebase0,n)
+            file=open(filebase1+'.out')
+            lines=file.readlines()
+            N,K,t1,dt,c,seed0=np.array(lines[0].split(),dtype=np.float64)
+            N=int(N)
+            length=int(t1/dt)
+            shape=(length,N)
+            lengths=lengths+[length]
+            if verbose:
+                print(lines[1])
+                print(lines[-1])
+            file.close()
+        
+            omega=da.from_array(np.memmap(filebase1+'frequencies.dat',dtype=np.float64,mode='r+',shape=(N)),name=False)
+            theta=da.from_array(np.memmap(filebase1+'thetas.dat',dtype=np.float64,mode='r+',shape=shape),name=False)
+        
+            theta=theta-np.mean(omega)*dt*np.arange(theta.shape[0])[:,np.newaxis]
+            thetas=thetas+[theta]
+            n=n+1
+            if num_traj == 0:
+                read_traj=os.path.exists('%s%i.out'%(filebase0,n))
+            elif n>=num_traj:
+                read_traj=False
+        
+        X0=da.vstack(tuple(thetas))
+        
+        if not os.path.exists(filebase+'X0'):
+            os.mkdir(filebase+'X0')
+        da.to_npy_stack(filebase+'X0',da.rechunk(X0,chunks=(chunks,chunks)))
+        X0=da.rechunk(da.from_npy_stack(filebase+'X0'),chunks=(chunks,chunks))
+        
+        includes=np.random.choice(np.arange(N*(N-1)//2),size=D,replace=False)
+        ls=np.array([(i+1)*N-i*(i-1)//2-1-2*i for i in range(N)],dtype=int)
+        Nt=thetas[0].shape[0]
+        
+        includes=np.random.choice(np.arange(N*(N-1)//2),size=D,replace=False)
+        ls=np.array([(i+1)*N-i*(i-1)//2-1-2*i for i in range(N)],dtype=int)
+        
+        ii=[]
+        jj=[]
+        for m in range(D):
+            i=np.where(ls>=includes[m])[0][0]
+            if i==0:
+                j=includes[m]
+            else:
+                j=includes[m]-ls[i-1]+i
+            ii=ii+[i]
+            jj=jj+[j]
+        X=da.hstack(((np.arange(1,M+1).reshape(1,1,-1)*X0.reshape(list(X0.shape)+[1])).transpose(0,2,1).reshape((-1,M*N)),X0[:,np.array(ii)]-X0[:,np.array(jj)]))
+        X=da.hstack((da.cos(X),da.sin(X)))
+        
+        if not os.path.exists(filebase+'X'):
+            os.mkdir(filebase+'X')
+        da.to_npy_stack(filebase+'X',da.rechunk(X,chunks=(chunks,chunks)))
+        X=da.rechunk(da.from_npy_stack(filebase+'X'),chunks=(chunks,chunks))
+
+        if not os.path.exists(filebase+'lengths.npy'):
+            np.save(filebase+'lengths.npy',np.array(lengths))
+    stop=timeit.default_timer()
+    if verbose:
+        print('data load runtime:',stop-start,flush=True)
+    return X,lengths,filebase,dt
+    
+def PCA(X,filebase,verbose=False,rank=None,tol=None,load=False,save=False,chunks=4096):
     if not load or not os.path.exists(filebase+'s.npy'):
         start=timeit.default_timer()
         if rank is None:
-            u,s,v=svd(X,full_matrices=False,check_finite=False)
+            u,sda,v=da.linalg.svd(X)
         else:
             u,sda,v=da.linalg.svd_compressed(X, rank, n_oversamples=rank, compute=False)
-            stop=timeit.default_timer()
-            if verbose:
-                print('svd runtime:',stop-start,flush=True)
-            start=timeit.default_timer()
-            s=sda.compute()
-            np.save(filebase+'s.npy',s)
-            stop=timeit.default_timer()
-            if verbose:
-                print('s runtime:',stop-start,flush=True)
-            start=timeit.default_timer()
-            #since we'll use u and v many times, compute and stope them here
-            if not os.path.exists(filebase+'u'):
-                os.mkdir(filebase+'u')
-            da.to_npy_stack(filebase+'u',da.rechunk(u,chunks=(chunks,chunks)))
-            u=da.rechunk(da.from_npy_stack(filebase+'u'),chunks=(chunks,chunks))
-            stop=timeit.default_timer()
-            if verbose:
-                print('u runtime:',stop-start,flush=True)
-            start=timeit.default_timer()
-            if not os.path.exists(filebase+'v'):
-                os.mkdir(filebase+'v')    
-            da.to_npy_stack(filebase+'v',da.rechunk(v,chunks=(chunks,chunks)))
-            stop=timeit.default_timer()
-            v=da.rechunk(da.from_npy_stack(filebase+'v'),chunks=(chunks,chunks))
-            if verbose:
-                print('v runtime:',stop-start,flush=True)
+        stop=timeit.default_timer()
+        if verbose:
+            print('svd runtime:',stop-start,flush=True)
+        start=timeit.default_timer()
+        s=sda.compute()
+        stop=timeit.default_timer()
+        if verbose:
+            print('s runtime:',stop-start,flush=True)
+        start=timeit.default_timer()
 
     else:
         s=np.load(filebase+'s.npy')
         u=da.rechunk(da.from_npy_stack(filebase+'u'),chunks=(chunks,chunks))
         v=da.rechunk(da.from_npy_stack(filebase+'v'),chunks=(chunks,chunks))
 
-    if rank is None:
-        try:
-            rank=np.where(s<s.max() * max(X.shape[0],X.shape[1]) * np.finfo(X.dtype).eps)[0][0]
-        except:
+    #Determine the rank to limit computations to based on numerical precision or a specified tolerance
+    try:
+        rank=np.where(s<s.max() * max(X.shape[0],X.shape[1]) * np.finfo(X.dtype).eps)[0][0]
+    except:
+        if rank is None:
             rank=min(X.shape[0],X.shape[1])
-    else:
-        #The normal matrix eigenvalues/squared singular values can only be computed to numerical precision
-        #so the numerical rank and svd precision is reduced for rank not None
-        #rank=len(np.where(evals>evals.max() * min(X.shape[0],X.shape[1]) * np.finfo(X.dtype).eps)[0])a
-        #but we can allow bigger Ritz space, which continues to decrease pca error for a bit more before saturating
-        try:
-            rank=np.where(s<s.max() * max(X.shape[0],X.shape[1]) * np.finfo(X.dtype).eps)[0][0]
-        except:
-            pass
 
     print('numerical rank:', rank,flush=True)
-    if not load or not os.path.exists(filebase+'errs.npy'):
-        start=timeit.default_timer()
-        errs=[]
-        if rank>10:
-            ranks=np.arange((rank//10),rank+1,rank//10)
-        else:
-            ranks=np.arange(1,rank)
-        for r in ranks:
-            Xtilde=(u[:,:r]*s[:r]).dot(v[:r])
-            err=da.linalg.norm(X-Xtilde)/da.linalg.norm(X)
-            errs=errs+[err.compute()]
-        errs=np.array([ranks,errs])
-
-        np.save(filebase+'errs.npy',errs)
-        stop=timeit.default_timer()
-        if verbose:
-            print('errs runtime:',stop-start,flush=True)
-    else:
-        errs=np.load(filebase+'errs.npy')
     
-    return s,u,v,errs
+    #since we'll use u and v many times, compute and store them here
+    start=timeit.default_timer()
+    if not os.path.exists(filebase+'u'):
+        os.mkdir(filebase+'u')
+    da.to_npy_stack(filebase+'u',da.rechunk(u[:,:rank],chunks=(chunks,chunks)))
+    u=da.rechunk(da.from_npy_stack(filebase+'u'),chunks=(chunks,chunks))
+    stop=timeit.default_timer()
+    if verbose:
+        print('u runtime:',stop-start,flush=True)
+    start=timeit.default_timer()
+    if not os.path.exists(filebase+'v'):
+        os.mkdir(filebase+'v')    
+    da.to_npy_stack(filebase+'v',da.rechunk(v[:rank],chunks=(chunks,chunks)))
+    stop=timeit.default_timer()
+    v=da.rechunk(da.from_npy_stack(filebase+'v'),chunks=(chunks,chunks))
+    if verbose:
+        print('v runtime:',stop-start,flush=True)
+    
+    if tol is not None:
+        if not load or not os.path.exists(filebase+'errs.npy'):
+            start=timeit.default_timer()
+            errs=[]
+            if rank>10:
+                ranks=np.arange((rank//10),rank+1,rank//10)
+            else:
+                ranks=np.arange(1,rank)
+            for r in ranks:
+                Xtilde=(u[:,:r]*s[:r]).dot(v[:r])
+                err=da.linalg.norm(X-Xtilde)/da.linalg.norm(X)
+                errs=errs+[err.compute()]
+            errs=np.array([ranks,errs])
+    
+            np.save(filebase+'errs.npy',errs)
+            stop=timeit.default_timer()
+            if verbose:
+                print('errs runtime:',stop-start,flush=True)
+        else:
+            errs=np.load(filebase+'errs.npy')
+            
+            r=int(errs[0][-1])
+        try:
+            f=interp1d(errs[0],errs[1])
+            r=int(root_scalar(lambda x:f(x)-tol,bracket=(errs[0][0],errs[0][-1])).root)
+        except:
+            pass
+        if verbose:
+            print('rank:',r,flush=True)
+            if(r==errs[0][-1]):
+                print('Warning: numerical precision may be limiting achievable pcatol')
+    else:
+        r=rank
+    
+    return s[:r],u[:,:r],v[:r]
 
-@profile
 def resDMD(U,V,S,X,Yinds,binds,filebase,verbose=False,load=False,save=True,dense_amplitudes=False,chunks=4096):
     if not load or not os.path.exists(filebase+'res.npy'):
         start=timeit.default_timer()
@@ -138,7 +227,7 @@ def resDMD(U,V,S,X,Yinds,binds,filebase,verbose=False,load=False,save=True,dense
         if verbose:
             print('revecsinv runtime:',stop-start,flush=True)
         start=timeit.default_timer()
-        phitildes=V.T.dot(S*revecsinv.T).T.compute()
+        phitildes=V.T.dot(S[:,np.newaxis]*revecsinv.T).T.compute()
         stop=timeit.default_timer()
         if verbose:
             print('phitildes runtime:',stop-start,flush=True)
@@ -217,91 +306,6 @@ def resDMDpseudo(U,A,zs,evals,evecs,filebase,verbose,load=False,save=True):
 
     return zs_prev,pseudo,xis,its
 
-@profile 
-def load_data(filebase0,filesuffix,verbose=False,num_traj=0,D=0,M=1,load=False, chunks=4096):
-    start=timeit.default_timer()
-    thetas=[]
-    lengths=[]
-    n=0
-    filebase=filebase0+filesuffix
-
-    if load and os.path.exists(filebase+'X'):
-        X=da.from_npy_stack(filebase+'X')
-        lengths=np.load(filebase+'lengths.npy')
-        n=0
-        filebase1='%s%i'%(filebase0,n)
-        file=open(filebase1+'.out')
-        lines=file.readlines()
-        N,K,t1,dt,c,seed0=np.array(lines[0].split(),dtype=np.float64)
-        file.close()
-        
-
-    else:
-        read_traj=True    
-        while read_traj:
-            filebase1='%s%i'%(filebase0,n)
-            file=open(filebase1+'.out')
-            lines=file.readlines()
-            N,K,t1,dt,c,seed0=np.array(lines[0].split(),dtype=np.float64)
-            N=int(N)
-            length=int(t1/dt)
-            shape=(length,N)
-            lengths=lengths+[length]
-            if verbose:
-                print(lines[1])
-                print(lines[-1])
-            file.close()
-        
-            omega=da.from_array(np.memmap(filebase1+'frequencies.dat',dtype=np.float64,mode='r+',shape=(N)),name=False)
-            theta=da.from_array(np.memmap(filebase1+'thetas.dat',dtype=np.float64,mode='r+',shape=shape),name=False)
-        
-            theta=theta-np.mean(omega)*dt*np.arange(theta.shape[0])[:,np.newaxis]
-            thetas=thetas+[theta]
-            n=n+1
-            if num_traj == 0:
-                read_traj=os.path.exists('%s%i.out'%(filebase0,n))
-            elif n>=num_traj:
-                read_traj=False
-        
-        X0=da.vstack(tuple(thetas))
-        
-        if not os.path.exists(filebase+'X0'):
-            os.mkdir(filebase+'X0')
-        da.to_npy_stack(filebase+'X0',da.rechunk(X0,chunks=(chunks,chunks)))
-        X0=da.rechunk(da.from_npy_stack(filebase+'X0'),chunks=(chunks,chunks))
-        
-        includes=np.random.choice(np.arange(N*(N-1)//2),size=D,replace=False)
-        ls=np.array([(i+1)*N-i*(i-1)//2-1-2*i for i in range(N)],dtype=int)
-        Nt=thetas[0].shape[0]
-        
-        includes=np.random.choice(np.arange(N*(N-1)//2),size=D,replace=False)
-        ls=np.array([(i+1)*N-i*(i-1)//2-1-2*i for i in range(N)],dtype=int)
-        
-        ii=[]
-        jj=[]
-        for m in range(D):
-            i=np.where(ls>=includes[m])[0][0]
-            if i==0:
-                j=includes[m]
-            else:
-                j=includes[m]-ls[i-1]+i
-            ii=ii+[i]
-            jj=jj+[j]
-        X=da.hstack(((np.arange(1,M+1).reshape(1,1,-1)*X0.reshape(list(X0.shape)+[1])).reshape((-1,M*N)),X0[:,np.array(ii)]-X0[:,np.array(jj)]))
-        X=da.hstack((da.cos(X),da.sin(X)))
-        
-        if not os.path.exists(filebase+'X'):
-            os.mkdir(filebase+'X')
-        da.to_npy_stack(filebase+'X',da.rechunk(X,chunks=(chunks,chunks)))
-        X=da.rechunk(da.from_npy_stack(filebase+'X'),chunks=(chunks,chunks))
-
-        if not os.path.exists(filebase+'lengths.npy'):
-            np.save(filebase+'lengths.npy',np.array(lengths))
-    stop=timeit.default_timer()
-    if verbose:
-        print('data load runtime:',stop-start,flush=True)
-    return X,lengths,filebase,dt
-
 if __name__ == "__main__":
 
     #Command line arguments
@@ -353,6 +357,7 @@ if __name__ == "__main__":
     ni = args.ni
     num_traj = args.num_traj
     rank = args.rank
+    pcatol = args.pcatol
     save = args.savepca
     runpseudo = args.runpseudo
     load = args.load
@@ -371,18 +376,9 @@ if __name__ == "__main__":
     if verbose:
         print('shape:', X[Xinds].shape, flush=True)
 
-    s,u,v,errs=PCA(X[Xinds],filebase,verbose,rank=rank,save=save,load=load,chunks=chunks)
-    r=int(errs[0][-1])
-    try:
-        f=interp1d(errs[0],errs[1])
-        r=int(root_scalar(lambda x:f(x)-pcatol,bracket=(errs[0][0],errs[0][-1])).root)
-    except:
-        pass
-    if verbose:
-        print('rank:',r,flush=True)
-        if(r==errs[0][-1]):
-            print('Warning: numerical precision may be limiting achievable pcatol')
-    evals,evecs,res,phis,bs,A=resDMD(u[:,:r],v[:r],s[:r],X,Yinds,binds,filebase,verbose,load=load,chunks=chunks)
+    s,u,v=PCA(X[Xinds],filebase,verbose,rank=rank,tol=pcatol,save=save,load=load,chunks=chunks)
+    
+    evals,evecs,res,phis,bs,A=resDMD(u,v,s,X,Yinds,binds,filebase,verbose,load=load,chunks=chunks)
 
 
     if runpseudo:
@@ -393,7 +389,7 @@ if __name__ == "__main__":
         muis=mini+(maxi-mini)*np.arange(ni)/(ni-1)
 
         zs=np.exp((murs[:,np.newaxis]+1j*muis[np.newaxis,:]).ravel()*dt)
-        zs_prevs,pseudo,xis,its=resDMDpseudo(u[:,:r].compute(),A,zs,evals,evecs,filebase,verbose,load=load)
+        zs_prevs,pseudo,xis,its=resDMDpseudo(u.compute(),A,zs,evals,evecs,filebase,verbose,load=load)
     stop=timeit.default_timer()
     
     print('runtime:',stop-start)

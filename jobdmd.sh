@@ -15,8 +15,10 @@ module load cuda
 
 M=5
 N=10000
-Ks=(`ls data/dmd/${N}`)
+filebase0='data/dmd'
+Ks=(`ls ${filebase0}/${N}`)
 K=${Ks[$SLURM_ARRAY_TASK_ID]}
-echo ./dmd.py --M $M --D $((N/2*M)) --seed 100 --rank 5000 --runpseudo 0 --load 0 --filesuffix ${M} --mem 50GB --filebase data/dmd/${N}/${K}/ & 
-./dmd.py --M $M --D $((N/2*M)) --seed 100 --rank 5000 --runpseudo 0 --load 0 --filesuffix ${M} --mem 50GB --filebase data/dmd/${N}/${K}/ & 
-wait
+./dmd.py --M $M --D $((N/2*M)) --seed 100 --rank 5000 --runpseudo 0 --load 0 --filesuffix ${M} --mem 50GB --filebase ${filebase0}/${N}/${K}/ 
+rm -rf ${filebase0}/${N}/${K}/${M}X0
+rm -rf ${filebase0}/${N}/${K}/${M}X
+rm -rf ${filebase0}/${N}/${K}/${M}v
